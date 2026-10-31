@@ -1,14 +1,19 @@
 // Service worker: guarda la app en el móvil para que funcione sin internet.
 // IMPORTANTE: cada vez que cambies algún archivo de la app, sube el número de VERSION
 // para que el móvil descargue la nueva versión.
-const VERSION = 'v1';
-const CACHE = 'gimnasio-' + VERSION;
+const VERSION = 'v2';
+const CACHE = 'edux-' + VERSION;
 const ARCHIVOS = [
   './',
   'index.html',
   'style.css',
-  'app.js',
   'rutina.js',
+  'almacen.js',
+  'datos.js',
+  'red.js',
+  'grafico.js',
+  'descanso.js',
+  'app.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -30,7 +35,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   // Solo servimos desde caché los archivos de la propia app.
-  // El envío a Google (POST a otro dominio) pasa directo a la red.
+  // Las llamadas a Google (otro dominio) pasan directas a la red.
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(req, { ignoreSearch: true }).then((r) => r || fetch(req))

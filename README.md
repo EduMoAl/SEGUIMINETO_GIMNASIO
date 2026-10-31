@@ -1,15 +1,25 @@
-# Seguimiento gimnasio
+# EDUX TRAINING
 
 App para Android (PWA) para apuntar pesos y repeticiones de la rutina PPL + torso.
 Funciona sin internet y, al terminar cada sesión, envía las series a la hoja
 **"Seguimiento entreno – PPL + torso"** (pestaña `Registro`) en Google Drive.
 
+**La hoja es la única fuente de datos.** El historial, el calendario, las gráficas,
+los récords y "última vez" se calculan a partir de la hoja. El móvil solo guarda:
+la sesión en curso, las sesiones pendientes de enviar (hasta que la hoja las confirma)
+y una copia de solo lectura del Registro para poder consultarlo sin internet.
+
 ## Archivos
 
 | Archivo | Qué es |
 |---|---|
-| `index.html`, `style.css` | Estructura y aspecto de la app |
-| `app.js` | Toda la lógica: pantallas, guardado automático y envío |
+| `index.html`, `style.css` | Estructura y aspecto (negro y morado) |
+| `app.js` | Pantallas: Inicio, Sesión, Resumen, Historial, Progreso y Ajustes |
+| `almacen.js` | Qué se guarda en el móvil y utilidades de formato |
+| `datos.js` | Calcula historial, evolución, récords y estadísticas a partir de la hoja |
+| `red.js` | Envío de sesiones y descarga de datos de la hoja |
+| `grafico.js` | Gráfico de evolución en SVG (sin librerías) |
+| `descanso.js` | Temporizador de descanso y pantalla siempre encendida |
 | `rutina.js` | La rutina, copiada exactamente de la pestaña `Rutina` |
 | `sw.js` | *Service worker*: guarda la app en el móvil para usarla sin internet |
 | `manifest.webmanifest`, `icons/` | Permiten instalarla como una app |
@@ -17,9 +27,14 @@ Funciona sin internet y, al terminar cada sesión, envía las series a la hoja
 
 ## Cómo funciona
 
-1. Eliges la sesión (Empuje, Tirón, Pierna o Fullbody) y apuntas kg y reps de cada serie.
-   Todo se guarda en el móvil al momento: si cierras la app, sigue ahí.
-2. **Terminar y enviar** muestra un resumen. Al confirmar, la sesión pasa a la cola de envío.
+1. Eliges la sesión (Inicio propone la siguiente de la rotación) y apuntas kg y reps de cada serie.
+   - Los campos muestran en gris lo que hiciste la última vez.
+   - **✓** marca la serie como hecha (si está vacía, la rellena con la última vez) y arranca el descanso.
+   - **− / +** cambian el peso de 2,5 en 2,5 kg y las reps de 1 en 1.
+   - Al completar un ejercicio se pliega y se pasa al siguiente. 🏆 marca los récords personales.
+   - La pantalla se mantiene encendida durante la sesión.
+   Todo se guarda en el móvil al momento: si se cierra la app, vuelves directo a la sesión.
+2. **Terminar sesión** muestra un resumen. Al guardar, la sesión pasa a la cola de envío.
 3. La app manda la sesión al script de la hoja, que escribe una fila por serie en `Registro`
    (columnas A–H; la columna Semana queda vacía). Volumen, 1RM y `Progreso` se calculan solos.
 4. Si no hay internet, la sesión queda **pendiente** y se envía sola cuando vuelve la conexión
@@ -47,8 +62,13 @@ La nota de cada ejercicio va en la fila de su primera serie.
 > "Cualquier usuario" es necesario para que la app pueda llamar al script sin iniciar sesión.
 > Nadie puede escribir sin la clave secreta.
 
-Si algún día cambias `Code.gs`: **Implementar → Gestionar implementaciones → ✏️ → Versión: Nueva versión**.
-Así se mantiene la misma URL.
+### Actualizar el script (cuando cambie `Code.gs`)
+
+1. **Extensiones → Apps Script**, sustituye todo el código por el nuevo `Code.gs` y guarda.
+2. **Implementar → Gestionar implementaciones → ✏️ (editar) → Versión: Nueva versión → Implementar**.
+
+Así se mantiene la misma URL y la misma clave. Si la app dice *"El script de la hoja es la
+versión antigua"*, es que falta este paso.
 
 ### 2. Publicar la app (GitHub Pages)
 

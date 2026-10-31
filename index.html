@@ -3,24 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111418">
-  <title>Gimnasio</title>
+  <meta name="theme-color" content="#09080d">
+  <title>EDUX TRAINING</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="barra">
-    <button id="btn-atras" class="icono" aria-label="Volver" hidden>‹</button>
-    <h1 id="titulo">Gimnasio</h1>
-    <button id="btn-ajustes" class="icono" aria-label="Ajustes">⚙</button>
-  </header>
-
-  <div id="aviso" class="aviso" hidden></div>
+  <header id="barra" class="barra"></header>
+  <div id="progreso-sesion" class="progreso-sesion" hidden><div class="relleno"></div></div>
 
   <main id="vista"></main>
 
+  <!-- Barra inferior durante la sesión: temporizador de descanso + terminar -->
+  <div id="dock" class="dock" hidden>
+    <div id="descanso" class="descanso" hidden>
+      <div class="descanso-barra"><div class="descanso-relleno"></div></div>
+      <div class="descanso-fila">
+        <div class="descanso-info">
+          <span class="descanso-etiqueta">Descanso</span>
+          <span class="descanso-tiempo">0:00</span>
+        </div>
+        <button class="chip" data-accion="descanso-menos">−15 s</button>
+        <button class="chip" data-accion="descanso-mas">+15 s</button>
+        <button class="chip fuerte" data-accion="descanso-saltar">Saltar</button>
+      </div>
+    </div>
+    <button class="btn primario ancho" data-accion="terminar">Terminar sesión</button>
+  </div>
+
+  <nav id="nav" class="nav">
+    <button data-tab="inicio" aria-label="Inicio">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button data-tab="historial" aria-label="Historial">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      <span>Historial</span>
+    </button>
+    <button data-tab="progreso" aria-label="Progreso">
+      <svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l5-5 4 3 6-7"/></svg>
+      <span>Progreso</span>
+    </button>
+    <button data-tab="ajustes" aria-label="Ajustes">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+  <div id="toast" class="toast" hidden></div>
+
   <script src="rutina.js"></script>
+  <script src="almacen.js"></script>
+  <script src="datos.js"></script>
+  <script src="red.js"></script>
+  <script src="grafico.js"></script>
+  <script src="descanso.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

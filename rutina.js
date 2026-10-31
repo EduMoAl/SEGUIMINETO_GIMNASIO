@@ -231,3 +231,14 @@ const RUTINA = {
     }
   ]
 };
+
+// Orden de la rotación (para proponer el "siguiente entreno").
+const ORDEN_SESIONES = ['Empuje', 'Tirón', 'Pierna', 'Fullbody'];
+
+// Datos de presentación de cada sesión.
+const INFO_SESION = {
+  'Empuje':   { letra: 'E', grupos: 'Pecho · Hombro · Tríceps' },
+  'Tirón':    { letra: 'T', grupos: 'Espalda · Bíceps' },
+  'Pierna':   { letra: 'P', grupos: 'Cuádriceps · Femoral · Glúteo' },
+  'Fullbody': { letra: 'F', grupos: 'Cuerpo completo' }
+};

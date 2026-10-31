@@ -54,6 +54,11 @@ function doPost(e) {
     return responder({ ok: true, mensaje: 'Conexión correcta.' });
   }
 
+  // La app pide todo el Registro para el historial, las gráficas y "última vez".
+  if (datos.tipo === 'datos') {
+    return responder({ ok: true, filas: leerRegistro() });
+  }
+
   if (datos.tipo !== 'sesion') {
     return responder({ ok: false, error: 'Tipo de petición desconocido.' });
   }
@@ -161,6 +166,57 @@ function primeraFilaLibre(hoja) {
     if (columnaA[i][0] !== '' && columnaA[i][0] !== null) return PRIMERA_FILA_DATOS + i + 1;
   }
   return PRIMERA_FILA_DATOS;
+}
+
+/**
+ * Devuelve todas las series de "Registro" en formato compacto:
+ * [fecha "yyyy-MM-dd", sesión, ejercicio, serie nº, peso, reps, nota]
+ * Ignora filas sin fecha, sin ejercicio o sin reps.
+ */
+function leerRegistro() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName(NOMBRE_HOJA);
+  if (!hoja) return [];
+  const ultima = hoja.getLastRow();
+  if (ultima < PRIMERA_FILA_DATOS) return [];
+  const tz = ss.getSpreadsheetTimeZone();
+  const valores = hoja.getRange(PRIMERA_FILA_DATOS, 1, ultima - PRIMERA_FILA_DATOS + 1, NUM_COLUMNAS).getValues();
+
+  const filas = [];
+  valores.forEach(function (v) {
+    const fecha = normalizarFecha(v[0], tz);
+    const ejercicio = String(v[3] || '').trim();
+    const reps = aNumero(v[6]);
+    if (!fecha || !ejercicio || reps === null) return;
+    filas.push([
+      fecha,
+      String(v[2] || '').trim(),
+      ejercicio,
+      aNumero(v[4]) || 0,
+      aNumero(v[5]) || 0,
+      reps,
+      String(v[7] || '').trim()
+    ]);
+  });
+  return filas;
+}
+
+/** Fecha de la celda (Date o texto "dd/mm/aaaa") → "yyyy-MM-dd", o null. */
+function normalizarFecha(v, tz) {
+  if (v instanceof Date && !isNaN(v.getTime())) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v || '').trim());
+  if (!m) return null;
+  const dos = function (x) { return ('0' + x).slice(-2); };
+  return m[3] + '-' + dos(m[2]) + '-' + dos(m[1]);
+}
+
+/** Número de la celda (acepta "62,5"), o null si está vacía o no es un número. */
+function aNumero(v) {
+  if (typeof v === 'number') return v;
+  const t = String(v === null || v === undefined ? '' : v).trim().replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
 }
 
 function responder(obj) {
