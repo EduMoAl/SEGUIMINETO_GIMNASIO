@@ -542,10 +542,14 @@ function calcularResumen(filas, tiempos, hoyIso) {
   filas.forEach(function (f) {
     const k = f[2];
     porEj[k] = porEj[k] || {};
-    const d = porEj[k][f[0]] = porEj[k][f[0]] || { peso: 0, rm: 0 };
+    const d = porEj[k][f[0]] = porEj[k][f[0]] || { peso: 0, rm: 0, sp: null, sr: null };
+    // Serie que da el peso máximo (a igual peso, la de más reps) y la del mejor 1RM
+    if (!d.sp || f[4] > d.sp[0] || (f[4] === d.sp[0] && f[5] > d.sp[1])) d.sp = [f[4], f[5]];
+    if (!d.sr || rm1(f[4], f[5]) > d.rm) d.sr = [f[4], f[5]];
     d.peso = Math.max(d.peso, f[4]);
     d.rm = Math.max(d.rm, rm1(f[4], f[5]));
   });
+  const serie = function (s) { return '(' + numTxt(s[0], 2) + ' kg × ' + s[1] + (s[1] === 1 ? ' rep' : ' reps') + ')'; };
   const records = [];
   Object.keys(porEj).forEach(function (ej) {
     const dias = Object.keys(porEj[ej]).sort();
@@ -553,8 +557,8 @@ function calcularResumen(filas, tiempos, hoyIso) {
     dias.forEach(function (dia) {
       const d = porEj[ej][dia];
       if (bestP !== null && dia >= ini && dia <= fin) {
-        if (d.peso > bestP) records.push({ ejercicio: ej, fecha: dia, texto: numTxt(d.peso, 2) + ' kg (antes ' + numTxt(bestP, 2) + ')' });
-        else if (d.rm > bestR) records.push({ ejercicio: ej, fecha: dia, texto: '1RM est. ' + numTxt(d.rm) + ' kg (antes ' + numTxt(bestR) + ')' });
+        if (d.peso > bestP) records.push({ ejercicio: ej, fecha: dia, texto: 'Peso ' + numTxt(d.peso, 2) + ' kg ' + serie(d.sp) + ' · antes ' + numTxt(bestP, 2) + ' kg' });
+        else if (d.rm > bestR) records.push({ ejercicio: ej, fecha: dia, texto: '1RM est. ' + numTxt(d.rm) + ' kg ' + serie(d.sr) + ' · antes ' + numTxt(bestR) + ' kg' });
       }
       bestP = bestP === null ? d.peso : Math.max(bestP, d.peso);
       bestR = bestR === null ? d.rm : Math.max(bestR, d.rm);

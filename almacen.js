@@ -107,6 +107,14 @@ function volumenTxt(kg) {
 function seriesTxt(series) {
   return series.map((s) => `${num(s.peso)}×${s.reps}`).join(' · ');
 }
+/** { peso: 65, reps: 12 } → "65 kg × 12 reps" */
+function serieTxt(s) {
+  return s ? `${num(s.peso)} kg × ${s.reps} ${s.reps === 1 ? 'rep' : 'reps'}` : '';
+}
+/** Récord con la serie real: 91 → "91 kg (65 kg × 12 reps)" */
+function prTxt(valor, serie, dec = 2) {
+  return `${num(valor, dec)} kg${serie ? ` (${serieTxt(serie)})` : ''}`;
+}
 /** 210 → "3:30" */
 function mmss(seg) {
   return `${Math.floor(seg / 60)}:${String(Math.round(seg % 60)).padStart(2, '0')}`;

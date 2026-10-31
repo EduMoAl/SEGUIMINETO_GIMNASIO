@@ -73,9 +73,12 @@ function construirIndice() {
   for (const f of filas) {
     if (!porEjercicio.has(f.ejercicio)) porEjercicio.set(f.ejercicio, new Map());
     const m = porEjercicio.get(f.ejercicio);
-    if (!m.has(f.fecha)) m.set(f.fecha, { fecha: f.fecha, series: [], pesoMax: 0, rm1: 0, volumen: 0, nota: '', pendiente: f.pendiente });
+    if (!m.has(f.fecha)) m.set(f.fecha, { fecha: f.fecha, series: [], pesoMax: 0, rm1: 0, volumen: 0, nota: '', pendiente: f.pendiente, seriePeso: null, serieRm1: null });
     const d = m.get(f.fecha);
     d.series.push({ serie: f.serie, peso: f.peso, reps: f.reps });
+    // Serie que da el peso máximo (a igual peso, la de más reps) y la que da el mejor 1RM
+    if (!d.seriePeso || f.peso > d.seriePeso.peso || (f.peso === d.seriePeso.peso && f.reps > d.seriePeso.reps)) d.seriePeso = { peso: f.peso, reps: f.reps };
+    if (!d.serieRm1 || rm1(f.peso, f.reps) > d.rm1) d.serieRm1 = { peso: f.peso, reps: f.reps };
     d.pesoMax = Math.max(d.pesoMax, f.peso);
     d.rm1 = Math.max(d.rm1, rm1(f.peso, f.reps));
     d.volumen += f.peso * f.reps;
@@ -87,10 +90,13 @@ function construirIndice() {
     const lista = [...m.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
     lista.forEach((d) => d.series.sort((a, b) => a.serie - b.serie));
     evolucion.set(nombre, lista);
-    const r = { peso: 0, rm1: 0, fechaPeso: null, fechaRm1: null };
+    const r = { peso: 0, rm1: 0, fechaPeso: null, fechaRm1: null, seriePeso: null, serieRm1: null };
     for (const d of lista) {
-      if (d.pesoMax > r.peso) { r.peso = d.pesoMax; r.fechaPeso = d.fecha; }
-      if (d.rm1 > r.rm1) { r.rm1 = d.rm1; r.fechaRm1 = d.fecha; }
+      // Mejor peso; si se iguala, cuenta la serie con más reps a ese peso
+      if (d.pesoMax > r.peso || !r.fechaPeso || (d.pesoMax === r.peso && d.seriePeso.reps > r.seriePeso.reps)) {
+        r.peso = d.pesoMax; r.fechaPeso = d.fecha; r.seriePeso = d.seriePeso;
+      }
+      if (d.rm1 > r.rm1 || !r.fechaRm1) { r.rm1 = d.rm1; r.fechaRm1 = d.fecha; r.serieRm1 = d.serieRm1; }
     }
     records.set(nombre, r);
   }
@@ -109,8 +115,8 @@ function construirIndice() {
     let bestP = null, bestR = null;
     for (const d of lista) {
       if (bestP !== null) {
-        if (d.pesoMax > bestP) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'peso', valor: d.pesoMax, anterior: bestP, series: d.series, pendiente: d.pendiente });
-        else if (d.rm1 > bestR) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'rm1', valor: d.rm1, anterior: bestR, series: d.series, pendiente: d.pendiente });
+        if (d.pesoMax > bestP) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'peso', valor: d.pesoMax, anterior: bestP, serie: d.seriePeso, pendiente: d.pendiente });
+        else if (d.rm1 > bestR) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'rm1', valor: d.rm1, anterior: bestR, serie: d.serieRm1, pendiente: d.pendiente });
       }
       bestP = bestP === null ? d.pesoMax : Math.max(bestP, d.pesoMax);
       bestR = bestR === null ? d.rm1 : Math.max(bestR, d.rm1);

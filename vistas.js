@@ -202,8 +202,8 @@ function htmlEjercicio() {
   const tiempos = idx.tiemposEj.get(nombre) || [];
   const media = tiempos.length ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length : null;
   html += `<div class="records">
-    <div class="stat"><div class="stat-etiqueta">Mejor peso</div><div class="stat-valor">${num(rec.peso)}<small>kg</small></div><div class="stat-pie">${esc(fechaCorta(rec.fechaPeso))}</div></div>
-    <div class="stat"><div class="stat-etiqueta">Mejor 1RM estimado</div><div class="stat-valor">${num(rec.rm1, 1)}<small>kg</small></div><div class="stat-pie">${esc(fechaCorta(rec.fechaRm1))}</div></div>
+    <div class="stat"><div class="stat-etiqueta">Mejor peso</div><div class="stat-valor">${num(rec.peso)}<small>kg</small></div><div class="stat-pie">${rec.seriePeso ? `(${esc(serieTxt(rec.seriePeso))})<br>` : ''}${esc(fechaCorta(rec.fechaPeso))}</div></div>
+    <div class="stat"><div class="stat-etiqueta">Mejor 1RM estimado</div><div class="stat-valor">${num(rec.rm1, 1)}<small>kg</small></div><div class="stat-pie">${rec.serieRm1 ? `(${esc(serieTxt(rec.serieRm1))})<br>` : ''}${esc(fechaCorta(rec.fechaRm1))}</div></div>
     <div class="stat"><div class="stat-etiqueta">Días registrados</div><div class="stat-valor">${lista.length}</div><div class="stat-pie">desde ${esc(fechaCorta(lista[0].fecha))}</div></div>
     <div class="stat"><div class="stat-etiqueta">Tiempo medio</div><div class="stat-valor">${media === null ? '—' : num(media, 0)}${media === null ? '' : '<small>min</small>'}</div><div class="stat-pie">${tiempos.length ? `en ${tiempos.length} ${tiempos.length === 1 ? 'sesión' : 'sesiones'}` : 'sin tiempos aún'}</div></div>
   </div>`;
@@ -386,7 +386,8 @@ function htmlRecord(r) {
     <div class="record-icono">🏆</div>
     <div class="record-txt">
       <b>${esc(r.ejercicio)}</b>
-      <span>${tipo} ${num(r.valor, dec)} kg <span class="tenue">· antes ${num(r.anterior, dec)} kg</span></span>
+      <span>${tipo} ${esc(prTxt(r.valor, r.serie, dec))}</span>
+      <span class="tenue">antes ${num(r.anterior, dec)} kg</span>
     </div>
     <div class="record-fecha">${esc(fechaCorta(r.fecha))}${r.pendiente ? '<br><span class="etiqueta-pend">pend.</span>' : ''}</div>
   </div>`;
@@ -412,8 +413,8 @@ function vistaRecords() {
       html += `<div class="muro-fila">
         <b>${esc(ej.nombre)}</b>
         <div class="muro-valores">
-          <span><small>Peso</small>${num(r.peso)} kg <em>${esc(fechaCorta(r.fechaPeso))}</em></span>
-          <span><small>1RM est.</small>${num(r.rm1, 1)} kg <em>${esc(fechaCorta(r.fechaRm1))}</em></span>
+          <span><small>Peso</small>${num(r.peso)} kg <em>${esc(fechaCorta(r.fechaPeso))}</em>${r.seriePeso ? `<i class="pr-serie">(${esc(serieTxt(r.seriePeso))})</i>` : ''}</span>
+          <span><small>1RM est.</small>${num(r.rm1, 1)} kg <em>${esc(fechaCorta(r.fechaRm1))}</em>${r.serieRm1 ? `<i class="pr-serie">(${esc(serieTxt(r.serieRm1))})</i>` : ''}</span>
         </div>
       </div>`;
     }

@@ -110,6 +110,14 @@ function esRecord(nombre, s) {
   return p > rec.peso || rm1(p, r) > rec.rm1;
 }
 
+/** Texto del récord que bate una serie: "1RM est. 93,2 kg (65 kg × 13 reps)" (o null) */
+function textoRecord(nombre, s) {
+  if (!esRecord(nombre, s)) return null;
+  const p = leerPeso(s.peso) ?? 0, r = leerReps(s.reps);
+  const rec = indice().records.get(nombre);
+  return p > rec.peso ? `Peso ${prTxt(p, { peso: p, reps: r })}` : `1RM est. ${prTxt(rm1(p, r), { peso: p, reps: r }, 1)}`;
+}
+
 /**
  * Convierte la sesión en lo que se envía a la hoja.
  * Se envían las series con reps; si el peso está vacío se envía 0.
@@ -119,7 +127,8 @@ function analizarSesion(actual) {
   const tiempos = [];
   const problemas = [];
   const avisos = [];
-  let volumen = 0, records = 0;
+  let volumen = 0;
+  const records = [];   // { ejercicio, txt } — el mejor récord de cada ejercicio
 
   for (const ej of RUTINA[actual.sesion]) {
     const d = actual.datos[ej.nombre];
@@ -137,7 +146,14 @@ function analizarSesion(actual) {
       }
       series.push({ serie: i + 1, peso: peso ?? 0, reps });
       volumen += (peso ?? 0) * reps;
-      if (esRecord(nombre, { ...s, hecha: true })) records++;
+      const sh = { ...s, hecha: true };
+      if (esRecord(nombre, sh)) {
+        // Se queda el mejor récord del ejercicio (más peso; a igual peso, mejor 1RM)
+        const valor = (peso ?? 0) * 1000 + rm1(peso ?? 0, reps);
+        const previo = records.find((x) => x.ejercicio === nombre);
+        if (!previo) records.push({ ejercicio: nombre, valor, txt: textoRecord(nombre, sh) });
+        else if (valor > previo.valor) { previo.valor = valor; previo.txt = textoRecord(nombre, sh); }
+      }
     });
     const nota = d.nota.trim();
     if (series.length) {
@@ -397,7 +413,7 @@ function marcarSerie(el) {
 
   if (record) {
     celebrar(caja.left + caja.width / 2, caja.top + caja.height / 2);
-    aviso(`🏆 ¡Récord en ${c.nombre}!`, 'ok', 4);
+    aviso(`🏆 ¡Récord en ${c.nombre}! ${textoRecord(c.nombre, s)}`, 'ok', 5);
     const fila = document.querySelector(`#ej-${c.iEj} .serie[data-serie="${c.iS}"] .pr`);
     if (fila) fila.classList.add('pop');
   }
@@ -528,7 +544,10 @@ function vistaResumen() {
     const clase = pct > 0 ? 'sube' : pct < 0 ? 'baja' : 'igual';
     html += `<div class="comparativa ${clase}">${pct > 0 ? '↑ +' : pct < 0 ? '↓ −' : '= '}${Math.abs(pct)} % de volumen frente a tu último ${esc(actual.sesion)} (${esc(fechaCorta(ant.fecha))})</div>`;
   }
-  if (records) html += `<div style="margin-top:10px;color:var(--aviso);font-weight:700">🏆 ${records} ${records === 1 ? 'récord personal' : 'récords personales'}</div>`;
+  if (records.length) {
+    html += `<div class="resumen-records"><b>🏆 ${records.length} ${records.length === 1 ? 'récord personal' : 'récords personales'}</b>
+      ${records.map((x) => `<div>${esc(x.ejercicio)}: ${esc(x.txt)}</div>`).join('')}</div>`;
+  }
   if (sesion.ejercicios.length) {
     html += '<ul class="lista-resumen" style="margin-top:14px">';
     for (const ej of sesion.ejercicios) {
