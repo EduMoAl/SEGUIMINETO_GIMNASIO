@@ -6,7 +6,7 @@
  *   Pantallas: sesion · resumen (sesion.js) · records (vistas.js)
  * ===================================================================== */
 
-const VERSION_APP = 'v3';
+const VERSION_APP = 'v4';
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
 
 let vistaActual = 'inicio';

@@ -58,6 +58,16 @@ function construirIndice() {
     }
   }
 
+  // Días de asistencia sin series (p. ej. historial importado de Lyfta): una fila
+  // "Sesión completa" en la pestaña Tiempos basta para marcar que fuiste al gimnasio.
+  for (const [fecha, sesion, ejercicio] of cache.tiempos || []) {
+    if (ejercicio !== TOTAL_SESION || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+    if (!dias.has(fecha)) dias.set(fecha, { fecha, sesiones: new Map() });
+    const dia = dias.get(fecha);
+    const clave = sesion || '—';
+    if (!dia.sesiones.has(clave)) dia.sesiones.set(clave, { sesion: clave, pendiente: false, ejercicios: new Map(), soloAsistencia: true });
+  }
+
   // --- Evolución por ejercicio (un punto por día) ---
   const porEjercicio = new Map();
   for (const f of filas) {

@@ -498,7 +498,8 @@ function sesionAnterior(nombreSesion) {
   let ultima = null;
   for (const dia of indice().dias.values()) {
     const s = dia.sesiones.get(nombreSesion);
-    if (s && (!ultima || dia.fecha > ultima.fecha)) ultima = { fecha: dia.fecha, ses: s };
+    // Los días de solo asistencia (sin series) no sirven para comparar volumen
+    if (s && s.ejercicios.size && (!ultima || dia.fecha > ultima.fecha)) ultima = { fecha: dia.fecha, ses: s };
   }
   if (!ultima) return null;
   let volumen = 0;

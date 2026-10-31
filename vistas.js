@@ -96,7 +96,9 @@ function vistaHistorial() {
       html += `<div class="tarjeta dia-sesion">
         <h4><span class="letra" style="margin:0;width:28px;height:28px;font-size:.85rem">${esc((INFO_SESION[s.sesion] || { letra: '•' }).letra)}</span>${esc(s.sesion)}
           ${s.pendiente ? '<span class="etiqueta-pend">pendiente</span>' : ''}</h4>
-        <div class="tenue" style="margin-bottom:6px">${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series.length, 0)} series${minSes ? ` · ⏱ ${minTxt(minSes)}` : ''}</div>`;
+        <div class="tenue" style="margin-bottom:6px">${s.soloAsistencia
+          ? `Asistencia registrada, sin series detalladas${minSes ? ` · ⏱ ${minTxt(minSes)}` : ''}`
+          : `${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series.length, 0)} series${minSes ? ` · ⏱ ${minTxt(minSes)}` : ''}`}</div>`;
       for (const ej of ejs) {
         const min = idx.tiempoDiaEj.get(`${estHist.dia}|${s.sesion}|${ej.nombre}`);
         html += `<div class="dia-ej"><b>${esc(ej.nombre)}${min !== undefined ? ` <span class="tenue">· ${minTxt(min)}</span>` : ''}</b>
