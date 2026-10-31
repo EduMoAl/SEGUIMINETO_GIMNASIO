@@ -91,8 +91,8 @@ const Descanso = {
   },
 
   avisar() {
-    if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 450]);
-    if (!this.audio) return;
+    vibrar([250, 120, 250, 120, 450]);
+    if (!this.audio || !prefs().sonido) return;
     try {
       const t = this.audio.currentTime;
       [0, 0.25, 0.5].forEach((d, i) => {

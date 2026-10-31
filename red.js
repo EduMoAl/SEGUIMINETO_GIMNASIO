@@ -4,7 +4,8 @@
  * Comunicación con el script de la hoja (Google Apps Script).
  *  - tipo 'ping':   prueba de conexión (no escribe nada)
  *  - tipo 'sesion': escribe una sesión en Registro
- *  - tipo 'datos':  devuelve todo el Registro
+ *  - tipo 'datos':  devuelve Registro, descansos, Tiempos y Perfil
+ *  - tipo 'perfil' / 'peso' / 'descanso': guardan datos en la hoja
  * ===================================================================== */
 
 let enviando = false;
@@ -104,7 +105,13 @@ async function actualizarDatos({ silencioso = true } = {}) {
   const r = await llamarScript({ tipo: 'datos' }, 60000);
   actualizando = false;
   if (r.ok && Array.isArray(r.filas)) {
-    guardar(K.cache, { actualizado: new Date().toISOString(), filas: r.filas });
+    guardar(K.cache, {
+      actualizado: new Date().toISOString(),
+      filas: r.filas,
+      descansos: r.descansos || {},
+      tiempos: r.tiempos || [],
+      perfil: r.perfil || null
+    });
     invalidarIndice();
     alCambiarDatos();
     if (!silencioso) aviso('✓ Datos actualizados desde la hoja', 'ok', 3);
@@ -113,4 +120,18 @@ async function actualizarDatos({ silencioso = true } = {}) {
   alCambiarDatos();
   if (!silencioso || !r.red) aviso('No se pudieron descargar los datos: ' + mensajeError(r), 'error', 8);
   return false;
+}
+
+/**
+ * Escritura directa en la hoja (perfil, peso, descanso). Necesita internet.
+ * Si va bien, vuelve a descargar los datos para que la app muestre lo que hay en la hoja.
+ */
+async function escribirEnHoja(cuerpo, mensajeOk) {
+  if (!configCompleta()) { aviso('Configura primero la conexión en Ajustes.', 'error'); return false; }
+  if (!navigator.onLine) { aviso('Sin conexión: para guardar en la hoja necesitas internet.', 'atencion'); return false; }
+  const r = await llamarScript(cuerpo);
+  if (!r.ok) { aviso('No se pudo guardar: ' + mensajeError(r), 'error', 8); return false; }
+  await actualizarDatos();
+  if (mensajeOk) aviso(mensajeOk, 'ok', 3);
+  return r;
 }

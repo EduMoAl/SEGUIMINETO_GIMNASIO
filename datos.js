@@ -93,7 +93,86 @@ function construirIndice() {
     }
   }
 
-  return { dias, evolucion, records, ultimaSesion, actualizado: cache.actualizado || null };
+  // --- Récords batidos a lo largo del tiempo (la primera vez no cuenta) ---
+  const historialRecords = [];
+  for (const [nombre, lista] of evolucion) {
+    let bestP = null, bestR = null;
+    for (const d of lista) {
+      if (bestP !== null) {
+        if (d.pesoMax > bestP) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'peso', valor: d.pesoMax, anterior: bestP, series: d.series, pendiente: d.pendiente });
+        else if (d.rm1 > bestR) historialRecords.push({ fecha: d.fecha, ejercicio: nombre, tipo: 'rm1', valor: d.rm1, anterior: bestR, series: d.series, pendiente: d.pendiente });
+      }
+      bestP = bestP === null ? d.pesoMax : Math.max(bestP, d.pesoMax);
+      bestR = bestR === null ? d.rm1 : Math.max(bestR, d.rm1);
+    }
+  }
+  historialRecords.sort((a, b) => b.fecha.localeCompare(a.fecha) || (ORDEN_EJ_DATOS.get(a.ejercicio) ?? 999) - (ORDEN_EJ_DATOS.get(b.ejercicio) ?? 999));
+
+  // --- Tiempos (pestaña Tiempos + pendientes) ---
+  const tiempoSesion = new Map();   // "fecha|sesión" → minutos totales
+  const tiempoDiaEj = new Map();    // "fecha|sesión|ejercicio" → minutos
+  const tiemposEj = new Map();      // ejercicio → [minutos, ...]
+  const anotarTiempo = (fecha, sesion, ejercicio, min) => {
+    if (ejercicio === TOTAL_SESION) { tiempoSesion.set(`${fecha}|${sesion}`, min); return; }
+    tiempoDiaEj.set(`${fecha}|${sesion}|${ejercicio}`, min);
+    if (!tiemposEj.has(ejercicio)) tiemposEj.set(ejercicio, []);
+    tiemposEj.get(ejercicio).push(min);
+  };
+  for (const [fecha, sesion, ejercicio, min] of cache.tiempos || []) anotarTiempo(fecha, sesion, ejercicio, Number(min));
+  for (const p of leer(K.pendientes, [])) {
+    for (const t of p.tiempos || []) anotarTiempo(p.fecha, p.sesion, t.ejercicio, t.minutos);
+    if (p.duracion) anotarTiempo(p.fecha, p.sesion, TOTAL_SESION, p.duracion);
+  }
+
+  return {
+    dias, evolucion, records, ultimaSesion, historialRecords,
+    tiempoSesion, tiempoDiaEj, tiemposEj,
+    descansos: cache.descansos || {},
+    perfil: cache.perfil || null,
+    actualizado: cache.actualizado || null
+  };
+}
+
+const TOTAL_SESION = 'Sesión completa';
+const ORDEN_EJ_DATOS = new Map();
+ORDEN_SESIONES.forEach((s) => RUTINA[s].forEach((ej) => ORDEN_EJ_DATOS.set(ej.nombre, ORDEN_EJ_DATOS.size)));
+const DEF_EJERCICIO = new Map();
+ORDEN_SESIONES.forEach((s) => RUTINA[s].forEach((ej) => DEF_EJERCICIO.set(ej.nombre, ej)));
+
+/** Descanso de un ejercicio en segundos: el de la hoja (pestaña Rutina) o el de la app */
+function descansoDe(nombre) {
+  const texto = indice().descansos[nombre] || (DEF_EJERCICIO.get(nombre) || {}).descanso || '2 min';
+  return descansoSegundos(texto);
+}
+
+/** Series por músculo en la semana que empieza el lunes indicado (principal 1, secundario ½) */
+function seriesPorMusculo(lunesIso) {
+  const fin = aISO(new Date(deISO(lunesIso).getTime() + 6 * 86400000 + 3600000));
+  const out = Object.fromEntries(ORDEN_MUSCULOS.map((m) => [m, 0]));
+  const detalle = Object.fromEntries(ORDEN_MUSCULOS.map((m) => [m, { principal: 0, secundario: 0 }]));
+  for (const dia of indice().dias.values()) {
+    if (dia.fecha < lunesIso || dia.fecha > fin) continue;
+    for (const s of dia.sesiones.values()) {
+      for (const ej of s.ejercicios.values()) {
+        const m = MUSCULOS[ej.nombre];
+        if (!m) continue;
+        m.forEach((mus, i) => {
+          out[mus] += ej.series.length * (i === 0 ? 1 : 0.5);
+          detalle[mus][i === 0 ? 'principal' : 'secundario'] += ej.series.length;
+        });
+      }
+    }
+  }
+  return { series: out, detalle };
+}
+
+/** Edad a partir de "yyyy-mm-dd" */
+function edad(nacimiento) {
+  if (!nacimiento) return null;
+  const n = deISO(nacimiento), h = new Date();
+  let e = h.getFullYear() - n.getFullYear();
+  if (h.getMonth() < n.getMonth() || (h.getMonth() === n.getMonth() && h.getDate() < n.getDate())) e--;
+  return e;
 }
 
 /** Último día registrado de un ejercicio (o null) */

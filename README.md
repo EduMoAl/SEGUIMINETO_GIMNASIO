@@ -14,7 +14,9 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
 | Archivo | Qué es |
 |---|---|
 | `index.html`, `style.css` | Estructura y aspecto (negro y morado) |
-| `app.js` | Pantallas: Inicio, Sesión, Resumen, Historial, Progreso y Ajustes |
+| `app.js` | Base: navegación, Inicio, eventos y arranque |
+| `sesion.js` | Entreno y resumen: series, sustitutos, series extra, tiempos, récords |
+| `vistas.js` | Historial, Progreso, Perfil, Récords y Ajustes |
 | `almacen.js` | Qué se guarda en el móvil y utilidades de formato |
 | `datos.js` | Calcula historial, evolución, récords y estadísticas a partir de la hoja |
 | `red.js` | Envío de sesiones y descarga de datos de la hoja |
@@ -23,7 +25,16 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
 | `rutina.js` | La rutina, copiada exactamente de la pestaña `Rutina` |
 | `sw.js` | *Service worker*: guarda la app en el móvil para usarla sin internet |
 | `manifest.webmanifest`, `icons/` | Permiten instalarla como una app |
-| `apps-script/Code.gs` | Script que va **dentro de la hoja de Google** y recibe las sesiones |
+| `apps-script/Code.gs` | Script que va **dentro de la hoja de Google**: recibe sesiones, devuelve datos y envía el resumen semanal |
+
+## Pestañas de la hoja que usa la app
+
+| Pestaña | Para qué |
+|---|---|
+| `Registro` | Una fila por serie (la app escribe A–H) |
+| `Rutina` | La app lee y cambia los descansos (columna F) |
+| `Tiempos` | Minutos por ejercicio y total de cada sesión (la crea el script) |
+| `Perfil` | Nombre, fecha de nacimiento, altura e historial de peso |
 
 ## Cómo funciona
 
@@ -31,7 +42,10 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
    - Los campos muestran en gris lo que hiciste la última vez.
    - **✓** marca la serie como hecha (si está vacía, la rellena con la última vez) y arranca el descanso.
    - **− / +** cambian el peso de 2,5 en 2,5 kg y las reps de 1 en 1.
-   - Al completar un ejercicio se pliega y se pasa al siguiente. 🏆 marca los récords personales.
+   - Al completar un ejercicio se pliega y se pasa al siguiente. 🏆 marca los récords personales (con animación).
+   - **+ Serie** añade una serie extra; **⇄ Sustituir** cambia el ejercicio solo para esa sesión
+     (por otro de la rutina) y se registra con el nombre del sustituto.
+   - Cada ejercicio cuenta su tiempo: desde que terminaste lo anterior hasta su última serie.
    - La pantalla se mantiene encendida durante la sesión.
    Todo se guarda en el móvil al momento: si se cierra la app, vuelves directo a la sesión.
 2. **Terminar sesión** muestra un resumen. Al guardar, la sesión pasa a la cola de envío.
@@ -69,6 +83,16 @@ La nota de cada ejercicio va en la fila de su primera serie.
 
 Así se mantiene la misma URL y la misma clave. Si la app dice *"El script de la hoja es la
 versión antigua"*, es que falta este paso.
+
+### Resumen semanal por email
+
+1. En el editor de Apps Script elige la función **`activarResumenSemanal`** y pulsa **▶ Ejecutar**.
+   Acepta los permisos (enviar correo y ejecutar a una hora programada).
+2. Comprueba en **⚙ Configuración del proyecto** que la zona horaria es `(GMT+01:00) Madrid`.
+3. Para probarlo ya: ejecuta **`probarResumenSemanal`** (envía el resumen de la semana pasada).
+
+Llega cada lunes hacia las 7:00 a la cuenta de Gmail dueña de la hoja.
+Para quitarlo: ejecuta **`desactivarResumenSemanal`**.
 
 ### 2. Publicar la app (GitHub Pages)
 

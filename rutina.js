@@ -242,3 +242,32 @@ const INFO_SESION = {
   'Pierna':   { letra: 'P', grupos: 'Cuádriceps · Femoral · Glúteo' },
   'Fullbody': { letra: 'F', grupos: 'Cuerpo completo' }
 };
+
+// Músculos de cada ejercicio: el primero es el principal (cuenta 1 serie),
+// los demás son secundarios (cuentan ½). Igual que en apps-script/Code.gs.
+const MUSCULOS = {
+  'Press banca': ['Pecho', 'Hombro', 'Tríceps'],
+  'Press inclinado 45º': ['Pecho', 'Hombro', 'Tríceps'],
+  'Fondos lastrados': ['Pecho', 'Tríceps'],
+  'Contractora de pecho': ['Pecho'],
+  'Press militar': ['Hombro', 'Tríceps'],
+  'Elevaciones laterales en polea': ['Hombro'],
+  'Press francés': ['Tríceps'],
+  'Extensión de tríceps en polea cruzada': ['Tríceps'],
+  'Extensión de tríceps sobre la cabeza en polea': ['Tríceps'],
+  'Remo en T': ['Espalda', 'Bíceps'],
+  'Jalón al pecho, agarre neutro': ['Espalda', 'Bíceps'],
+  'Remo en máquina': ['Espalda', 'Bíceps'],
+  'Remo en polea': ['Espalda', 'Bíceps'],
+  'Curl predicador': ['Bíceps'],
+  'Curl de bíceps en polea': ['Bíceps'],
+  'Curl martillo con mancuernas': ['Bíceps'],
+  'Sentadilla hack': ['Cuádriceps', 'Glúteo'],
+  'Extensión de rodilla': ['Cuádriceps'],
+  'Curl femoral sentado': ['Femoral'],
+  'Curl femoral tumbado': ['Femoral'],
+  'Peso muerto rumano': ['Femoral', 'Glúteo'],
+  'Hip thrust': ['Glúteo'],
+  'Aductora en máquina': ['Aductores']
+};
+const ORDEN_MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores'];

@@ -7,8 +7,8 @@
  *  - actual:     la sesión que estás haciendo (para no perderla si se cierra la app).
  *  - pendientes: sesiones terminadas que aún no han llegado a la hoja.
  *                Se borran en cuanto la hoja confirma que las ha recibido.
- *  - cache:      copia de SOLO LECTURA del Registro de la hoja, para consultar
- *                "última vez", récords, calendario y gráficas sin internet.
+ *  - cache:      copia de SOLO LECTURA de la hoja (Registro, descansos de Rutina,
+ *                Tiempos y Perfil), para consultar todo sin internet.
  *                Se sustituye entera cada vez que se descarga de la hoja.
  * ===================================================================== */
 
@@ -18,8 +18,19 @@ const K = {
   pendientes: 'gym.pendientes',
   cache: 'gym.cache',
   descanso: 'gym.descanso',        // temporizador en marcha (para sobrevivir a una recarga)
-  ejercicioProgreso: 'gym.progreso.ejercicio'
+  ejercicioProgreso: 'gym.progreso.ejercicio',
+  prefs: 'gym.prefs'               // preferencias del móvil: sonido y vibración
 };
+
+/** Preferencias del teléfono (no son datos de entreno) */
+function prefs() {
+  return { sonido: true, vibracion: true, ...leer(K.prefs, {}) };
+}
+
+/** Vibrar solo si está activado en Ajustes */
+function vibrar(patron) {
+  if (prefs().vibracion && navigator.vibrate) navigator.vibrate(patron);
+}
 
 // Limpieza de datos de la versión 1 (la app ya no guarda historial propio).
 ['gym.ultimo', 'gym.ultimaSesion', 'gym.enviadas'].forEach((k) => localStorage.removeItem(k));
@@ -95,6 +106,10 @@ function volumenTxt(kg) {
 /** Lista de series → "60×8 · 62,5×7" */
 function seriesTxt(series) {
   return series.map((s) => `${num(s.peso)}×${s.reps}`).join(' · ');
+}
+/** 210 → "3:30" */
+function mmss(seg) {
+  return `${Math.floor(seg / 60)}:${String(Math.round(seg % 60)).padStart(2, '0')}`;
 }
 /** "3,5 min" → 210 (segundos) */
 function descansoSegundos(texto) {
