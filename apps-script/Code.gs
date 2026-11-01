@@ -1,588 +1,832 @@
 /**
- * EDUX TRAINING – script de la hoja "Seguimiento entreno – PPL + torso".
+ * EDUX TRAINING — SCRIPT CENTRAL (varios usuarios)
  *
- * Se pega en la hoja (Extensiones → Apps Script) y se publica como aplicación web.
- * La hoja es la ÚNICA fuente de datos de la app:
- *   - Registro: una fila por serie (columnas A–H). Volumen y 1RM (I, J) los calcula la hoja.
- *   - Rutina:   la app lee y cambia aquí los descansos (columna F).
- *   - Tiempos:  minutos por ejercicio y total de cada sesión (la crea este script).
- *   - Perfil:   tus datos personales y el historial de peso (la crea este script).
- * Además envía un resumen semanal por email (ver activarResumenSemanal).
+ * Va pegado en la hoja "EDUX · Administración" (Extensiones → Apps Script) y se publica
+ * como aplicación web (Ejecutar como: Yo · Acceso: Cualquier usuario).
+ *
+ *  - La pestaña "Usuarios" de la hoja de Administración guarda a cada usuario:
+ *    su nombre, email, la hoja con sus datos y su clave.
+ *  - Cada usuario tiene SU hoja (Rutina, Registro, Sesiones, Tiempos, Perfil, Progreso).
+ *    Con su clave, la app solo puede leer y escribir en esa hoja.
+ *  - El menú "EDUX" de la hoja de Administración tiene la instalación, la migración de
+ *    la hoja antigua y la activación de los emails automáticos.
+ *  - Emails: resumen semanal (lunes ~7:00) y recordatorio si alguien lleva X días
+ *    sin entrenar (todos los días ~18:00), cada uno a su email.
  */
 
-const HOJA_REGISTRO = 'Registro';
-const HOJA_RUTINA = 'Rutina';
-const HOJA_TIEMPOS = 'Tiempos';
-const HOJA_PERFIL = 'Perfil';
-const PRIMERA_FILA_DATOS = 3;   // Registro: filas 1 y 2 son cabeceras
-const NUM_COLUMNAS = 8;         // A Fecha · B Semana · C Sesión · D Ejercicio · E Serie nº · F Peso · G Reps · H Notas
-const SESIONES_VALIDAS = ['Empuje', 'Tirón', 'Pierna', 'Fullbody'];
-const PREFIJO_ENVIADA = 'enviada_';
-const TOTAL_SESION = 'Sesión completa';
+const APP_URL = 'https://edumoal.github.io/SEGUIMINETO_GIMNASIO/';
+const VERSION_SCRIPT = 2;
 
-// Músculo principal (1 serie) y secundarios (½ serie). Igual que en la app (rutina.js).
-const MUSCULOS = {
-  'Press banca': ['Pecho', 'Hombro', 'Tríceps'],
-  'Press inclinado 45º': ['Pecho', 'Hombro', 'Tríceps'],
-  'Fondos lastrados': ['Pecho', 'Tríceps'],
-  'Contractora de pecho': ['Pecho'],
-  'Press militar': ['Hombro', 'Tríceps'],
-  'Elevaciones laterales en polea': ['Hombro'],
-  'Press francés': ['Tríceps'],
-  'Extensión de tríceps en polea cruzada': ['Tríceps'],
-  'Extensión de tríceps sobre la cabeza en polea': ['Tríceps'],
-  'Remo en T': ['Espalda', 'Bíceps'],
-  'Jalón al pecho, agarre neutro': ['Espalda', 'Bíceps'],
-  'Remo en máquina': ['Espalda', 'Bíceps'],
-  'Remo en polea': ['Espalda', 'Bíceps'],
-  'Curl predicador': ['Bíceps'],
-  'Curl de bíceps en polea': ['Bíceps'],
-  'Curl martillo con mancuernas': ['Bíceps'],
-  'Sentadilla hack': ['Cuádriceps', 'Glúteo'],
-  'Extensión de rodilla': ['Cuádriceps'],
-  'Curl femoral sentado': ['Femoral'],
-  'Curl femoral tumbado': ['Femoral'],
-  'Peso muerto rumano': ['Femoral', 'Glúteo'],
-  'Hip thrust': ['Glúteo'],
-  'Aductora en máquina': ['Aductores']
+const MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Antebrazo', 'Abdomen', 'Lumbar',
+  'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores', 'Gemelos'];
+const MATERIALES = ['Barra', 'Máquina', 'Polea', 'Mancuernas', 'Peso corporal', 'Otro'];
+
+const CABECERAS = {
+  Rutina: ['Sesión', 'Orden', 'Ejercicio', 'Series', 'Repeticiones', 'Descanso', 'Músculo principal', 'Músculos secundarios', 'Material'],
+  Registro: ['ID sesión', 'Fecha', 'Sesión', 'Ejercicio', 'Serie', 'Peso (kg)', 'Reps', 'Nota', 'Volumen (kg)', '1RM est. (kg)'],
+  Sesiones: ['ID', 'Fecha', 'Sesión', 'Inicio', 'Duración (min)', 'Series', 'Volumen (kg)', 'Origen', 'Enviada'],
+  Tiempos: ['ID sesión', 'Ejercicio', 'Minutos'],
+  Progreso: ['Ejercicio', 'Sesión', 'Series registradas', 'Días', 'Mejor peso (kg)', 'Mejor 1RM est. (kg)', 'Última vez', 'Peso máx. última vez (kg)']
 };
-const ORDEN_MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores'];
+const PESTANAS_USUARIO = ['Rutina', 'Registro', 'Sesiones', 'Tiempos', 'Perfil', 'Progreso'];
+const PERFIL_CAMPOS = { nombre: 'Nombre', nacimiento: 'Fecha de nacimiento', altura: 'Altura (cm)', recordatorio: 'Recordatorio (días)' };
+const RECORDATORIO_DEFECTO = 7;
 
-/* ============================ Configuración ============================ */
+const CAB_USUARIOS = ['ID', 'Nombre', 'Email', 'Hoja', 'Clave', 'Rol', 'Activo', 'Alta', 'Último entreno', 'Último recordatorio', 'Recordatorio por el entreno del'];
+const COL = { id: 1, nombre: 2, email: 3, hoja: 4, clave: 5, rol: 6, activo: 7, alta: 8, ultimo: 9, recordatorio: 10, recordatorioPor: 11 };
+const TIPOS_ADMIN = ['usuarios', 'crearUsuario', 'enlaceUsuario', 'activarUsuario', 'nuevaClave'];
+
+/* ===================================================================== */
+/* 1. MENÚ E INSTALACIÓN                                                  */
+/* ===================================================================== */
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('EDUX')
+    .addItem('1 · Instalar', 'instalar')
+    .addItem('2 · Migrar hoja antigua…', 'migrarDesdeMenu')
+    .addItem('3 · Activar emails automáticos', 'activarAvisos')
+    .addSeparator()
+    .addItem('Mi enlace de conexión', 'mostrarMiEnlace')
+    .addItem('Probar resumen semanal (te llega a ti)', 'probarResumenSemanal')
+    .addToUi();
+}
+
+function ui_() {
+  try { return SpreadsheetApp.getUi(); } catch (e) { return null; }
+}
 
 /**
- * Ejecuta esta función UNA VEZ desde el editor (botón ▶ Ejecutar).
- * Crea la clave secreta (si no existe) y la muestra en el registro de ejecución.
+ * Prepara la hoja de Administración, las carpetas y tu usuario (administrador).
+ * Desde el menú pregunta la URL de la aplicación web y tu nombre.
  */
-function generarClave() {
+function instalar(opciones) {
+  opciones = opciones || {};
+  const ui = opciones.sinUi ? null : ui_();
   const props = PropertiesService.getScriptProperties();
-  let clave = props.getProperty('CLAVE');
-  if (!clave) {
-    clave = Utilities.getUuid().replace(/-/g, '');
-    props.setProperty('CLAVE', clave);
+  const admin = SpreadsheetApp.getActiveSpreadsheet();
+  props.setProperty('ADMIN_ID', admin.getId());
+
+  let url = opciones.urlWebApp || props.getProperty('URL_WEBAPP');
+  if (!url && ui) {
+    const r = ui.prompt('EDUX · Instalar (1/2)', 'Pega la URL de la aplicación web.\n(Implementar → Gestionar implementaciones → URL que termina en /exec)', ui.ButtonSet.OK_CANCEL);
+    if (r.getSelectedButton() !== ui.Button.OK) return null;
+    url = r.getResponseText().trim();
   }
-  Logger.log('Tu clave secreta es: ' + clave);
-  return clave;
-}
-
-/* ============================ Aplicación web ============================ */
-
-/** La app hace POST con un JSON { clave, tipo, ... }. */
-function doPost(e) {
-  let datos;
-  try {
-    datos = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return responder({ ok: false, error: 'Datos ilegibles (JSON inválido).' });
+  if (!opciones.urlWebApp && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(url || '')) {
+    throw new Error('La URL de la aplicación web debe empezar por https://script.google.com/ y terminar en /exec.');
   }
+  props.setProperty('URL_WEBAPP', url);
 
-  const props = PropertiesService.getScriptProperties();
-  const clave = props.getProperty('CLAVE');
-  if (!clave) return responder({ ok: false, error: 'El script no tiene clave. Ejecuta generarClave() en el editor.' });
-  if (datos.clave !== clave) return responder({ ok: false, error: 'Clave incorrecta.' });
+  prepararPestanaUsuarios_(admin);
+  carpetaUsuarios_();
 
-  try {
-    switch (datos.tipo) {
-      case 'ping':
-        return responder({ ok: true, mensaje: 'Conexión correcta.' });
-      case 'datos':
-        return responder({
-          ok: true,
-          filas: leerRegistro(),
-          descansos: leerDescansos(),
-          tiempos: leerTiempos(),
-          perfil: leerPerfil()
-        });
-      case 'sesion':
-        return conBloqueo(function () { return guardarSesion(datos.sesion, props); });
-      case 'perfil':
-        return conBloqueo(function () { return guardarPerfil(datos.perfil); });
-      case 'peso':
-        return conBloqueo(function () { return guardarPeso(datos.fecha, datos.peso); });
-      case 'descanso':
-        return conBloqueo(function () { return guardarDescanso(datos.ejercicio, datos.segundos); });
-      default:
-        return responder({ ok: false, error: 'Tipo de petición desconocido.' });
+  let u = leerUsuarios_().filter(function (x) { return x.rol === 'admin'; })[0];
+  if (!u) {
+    let nombre = opciones.nombre;
+    if (!nombre && ui) {
+      const r = ui.prompt('EDUX · Instalar (2/2)', '¿Cómo te llamas? (es el nombre del saludo de la app)', ui.ButtonSet.OK);
+      nombre = r.getResponseText().trim();
     }
+    u = crearUsuario_({ nombre: nombre || 'Administrador', email: Session.getEffectiveUser().getEmail(), rol: 'admin' });
+  }
+  const enlace = enlaceDe_(u);
+  if (!opciones.sinEmail) enviarEnlace_(u, enlace);
+  if (ui) {
+    ui.alert('EDUX · Instalado',
+      'Listo. Tu hoja nueva es "EDUX · ' + u.nombre + '" (carpeta EDUX TRAINING/Usuarios).\n\n' +
+      'Te he enviado por email tu enlace de conexión para el móvil.\n\n' +
+      'Siguiente paso: menú EDUX → 2 · Migrar hoja antigua.', ui.ButtonSet.OK);
+  }
+  return { usuario: u, enlace: enlace };
+}
+
+/** Muestra (y envía por email) el enlace de conexión del administrador */
+function mostrarMiEnlace() {
+  const u = leerUsuarios_().filter(function (x) { return x.rol === 'admin'; })[0];
+  if (!u) throw new Error('Primero: menú EDUX → 1 · Instalar.');
+  const enlace = enlaceDe_(u);
+  enviarEnlace_(u, enlace);
+  const ui = ui_();
+  if (ui) ui.alert('Tu enlace de conexión', 'Te lo he enviado por email. Ábrelo en Chrome en tu móvil:\n\n' + enlace, ui.ButtonSet.OK);
+  return enlace;
+}
+
+/* ===================================================================== */
+/* 2. USUARIOS                                                            */
+/* ===================================================================== */
+
+function hojaAdmin_() {
+  const id = PropertiesService.getScriptProperties().getProperty('ADMIN_ID');
+  return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function prepararPestanaUsuarios_(admin) {
+  let h = admin.getSheetByName('Usuarios');
+  if (!h) {
+    const hojas = admin.getSheets();
+    h = hojas.length === 1 && hojas[0].getLastRow() === 0 ? hojas[0] : admin.insertSheet('Usuarios');
+    h.setName('Usuarios');
+  }
+  h.getRange(1, 1, 1, CAB_USUARIOS.length).setValues([CAB_USUARIOS]).setFontWeight('bold');
+  h.setFrozenRows(1);
+  return h;
+}
+
+function pestanaUsuarios_() {
+  const h = hojaAdmin_().getSheetByName('Usuarios');
+  if (!h) throw new Error('El script no está instalado. Menú EDUX → 1 · Instalar.');
+  return h;
+}
+
+function siNo_(v) {
+  if (v === true) return true;
+  const t = String(v).trim().toLowerCase();
+  return t === 'sí' || t === 'si' || t === 'true' || t === '1';
+}
+
+function leerUsuarios_() {
+  const h = pestanaUsuarios_();
+  if (h.getLastRow() < 2) return [];
+  return h.getRange(2, 1, h.getLastRow() - 1, CAB_USUARIOS.length).getValues().map(function (v, i) {
+    return {
+      fila: i + 2, id: texto_(v[0]), nombre: texto_(v[1]), email: texto_(v[2]), hoja: texto_(v[3]), clave: texto_(v[4]),
+      rol: texto_(v[5]) || 'usuario', activo: siNo_(v[6]), alta: v[7], ultimo: v[8], recordatorio: v[9], recordatorioPor: v[10]
+    };
+  }).filter(function (u) { return u.id && u.clave; });
+}
+
+function usuarioPorClave_(clave) {
+  if (!clave) return null;
+  return leerUsuarios_().filter(function (u) { return u.activo && u.clave === String(clave); })[0] || null;
+}
+
+function crearUsuario_(d) {
+  const nombre = texto_(d.nombre).slice(0, 40);
+  if (!nombre) throw new Error('Falta el nombre.');
+  const email = texto_(d.email);
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('El email no es válido.');
+  if (leerUsuarios_().some(function (u) { return u.nombre.toLowerCase() === nombre.toLowerCase(); })) {
+    throw new Error('Ya hay un usuario llamado "' + nombre + '".');
+  }
+  const ss = crearHojaUsuario_(nombre, email);
+  const u = {
+    id: 'u' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), nombre: nombre, email: email, hoja: ss.getId(),
+    clave: Utilities.getUuid().replace(/-/g, ''), rol: d.rol === 'admin' ? 'admin' : 'usuario', activo: true, alta: new Date()
+  };
+  const h = pestanaUsuarios_();
+  const fila = Math.max(h.getLastRow(), 1) + 1;
+  h.getRange(fila, 1, 1, CAB_USUARIOS.length).setValues([[u.id, u.nombre, u.email, u.hoja, u.clave, u.rol, 'Sí', u.alta, '', '', '']]);
+  h.getRange(fila, COL.alta).setNumberFormat('dd/mm/yyyy');
+  u.fila = fila;
+  return u;
+}
+
+function enlaceDe_(u) {
+  const url = PropertiesService.getScriptProperties().getProperty('URL_WEBAPP');
+  const datos = Utilities.base64EncodeWebSafe(JSON.stringify({ u: url, c: u.clave }), Utilities.Charset.UTF_8).replace(/=+$/, '');
+  return APP_URL + '#conectar=' + datos;
+}
+
+function usuarioPublico_(u) {
+  return {
+    id: u.id, nombre: u.nombre, email: u.email, rol: u.rol, activo: u.activo,
+    alta: isoDe_(u.alta), ultimo: isoDe_(u.ultimo), hojaUrl: 'https://docs.google.com/spreadsheets/d/' + u.hoja + '/edit'
+  };
+}
+
+function enviarEnlace_(u, enlace) {
+  if (!u.email) return false;
+  const html = plantillaEmail_(
+    u.nombre ? 'Hola, ' + esc_(u.nombre) : 'Hola',
+    '<p style="color:#c3bdd4;line-height:1.5">Este es tu acceso a <b style="color:#f4f2fa">EDUX TRAINING</b>. Ábrelo <b>desde tu móvil</b>:</p>' +
+    '<p style="margin:22px 0"><a href="' + enlace + '" style="display:inline-block;padding:14px 24px;border-radius:999px;background:#7c3aed;color:#fff;font-weight:700;text-decoration:none">Abrir EDUX TRAINING</a></p>' +
+    '<ol style="color:#c3bdd4;line-height:1.6;padding-left:18px">' +
+    '<li>Abre el botón en <b>Chrome</b> (Android) o <b>Safari</b> (iPhone).</li>' +
+    '<li>Instálala: Chrome → menú ⋮ → <i>Instalar aplicación</i> · Safari → Compartir → <i>Añadir a pantalla de inicio</i>.</li>' +
+    '<li>Ya está conectada a tus datos. No compartas este enlace: es tu llave.</li></ol>');
+  MailApp.sendEmail({ to: u.email, subject: 'Tu acceso a EDUX TRAINING', htmlBody: html, name: 'EDUX TRAINING' });
+  return true;
+}
+
+/** Peticiones del panel de usuarios (solo administrador) */
+function accionAdmin_(d) {
+  const lista = leerUsuarios_();
+  const buscar = function () {
+    const u = lista.filter(function (x) { return x.id === d.id; })[0];
+    if (!u) throw new Error('Usuario no encontrado.');
+    return u;
+  };
+  switch (d.tipo) {
+    case 'usuarios':
+      return { ok: true, usuarios: lista.map(usuarioPublico_) };
+    case 'crearUsuario': {
+      const u = crearUsuario_({ nombre: d.nombre, email: d.email, rol: 'usuario' });
+      const enlace = enlaceDe_(u);
+      const enviado = d.enviarEmail ? enviarEnlace_(u, enlace) : false;
+      return { ok: true, usuario: usuarioPublico_(u), enlace: enlace, enviado: enviado };
+    }
+    case 'enlaceUsuario': {
+      const u = buscar();
+      const enlace = enlaceDe_(u);
+      const enviado = d.enviarEmail ? enviarEnlace_(u, enlace) : false;
+      return { ok: true, enlace: enlace, enviado: enviado };
+    }
+    case 'activarUsuario': {
+      const u = buscar();
+      if (u.rol === 'admin') throw new Error('No puedes desactivar al administrador.');
+      pestanaUsuarios_().getRange(u.fila, COL.activo).setValue(d.activo ? 'Sí' : 'No');
+      return { ok: true };
+    }
+    case 'nuevaClave': {
+      const u = buscar();
+      u.clave = Utilities.getUuid().replace(/-/g, '');
+      pestanaUsuarios_().getRange(u.fila, COL.clave).setValue(u.clave);
+      return { ok: true, enlace: enlaceDe_(u) };
+    }
+  }
+  throw new Error('Acción desconocida.');
+}
+
+/* ===================================================================== */
+/* 3. HOJA DE CADA USUARIO (plantilla)                                    */
+/* ===================================================================== */
+
+function carpetaUsuarios_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('CARPETA_USUARIOS');
+  if (id) {
+    try { return DriveApp.getFolderById(id); } catch (e) { /* se borró: se crea otra */ }
+  }
+  const raiz = DriveApp.createFolder('EDUX TRAINING');
+  const usuarios = raiz.createFolder('Usuarios');
+  try { DriveApp.getFileById(hojaAdmin_().getId()).moveTo(raiz); } catch (e) { /* sigue donde estaba */ }
+  props.setProperty('CARPETA_USUARIOS', usuarios.getId());
+  return usuarios;
+}
+
+function crearHojaUsuario_(nombre, email) {
+  const ss = SpreadsheetApp.create('EDUX · ' + nombre);
+  try { DriveApp.getFileById(ss.getId()).moveTo(carpetaUsuarios_()); } catch (e) { /* queda en Mi unidad */ }
+  prepararHojaUsuario_(ss, nombre);
+  return ss;
+}
+
+/** Crea (o completa) las pestañas de una hoja de usuario con sus cabeceras y validaciones */
+function prepararHojaUsuario_(ss, nombre) {
+  PESTANAS_USUARIO.forEach(function (nombrePestana, i) {
+    let h = ss.getSheetByName(nombrePestana);
+    if (!h) {
+      const hojas = ss.getSheets();
+      // La primera pestaña vacía que trae una hoja nueva se reutiliza como "Rutina"
+      h = i === 0 && hojas.length === 1 && hojas[0].getLastRow() === 0 && PESTANAS_USUARIO.indexOf(hojas[0].getName()) < 0
+        ? hojas[0] : ss.insertSheet(nombrePestana);
+      h.setName(nombrePestana);
+    }
+    if (nombrePestana === 'Perfil') {
+      if (h.getLastRow() === 0) {
+        h.getRange(1, 1, 5, 2).setValues([['Dato', 'Valor'],
+          [PERFIL_CAMPOS.nombre, nombre || ''], [PERFIL_CAMPOS.nacimiento, ''],
+          [PERFIL_CAMPOS.altura, ''], [PERFIL_CAMPOS.recordatorio, RECORDATORIO_DEFECTO]]);
+        h.getRange(1, 3).setNote('El email de cada usuario está en la hoja de Administración (pestaña Usuarios).');
+        h.getRange(1, 4, 1, 2).setValues([['Fecha', 'Peso (kg)']]);
+      }
+      h.getRange(1, 1, 1, 5).setFontWeight('bold');
+    } else {
+      h.getRange(1, 1, 1, CABECERAS[nombrePestana].length).setValues([CABECERAS[nombrePestana]]).setFontWeight('bold');
+    }
+    h.setFrozenRows(1);
+  });
+  const rutina = ss.getSheetByName('Rutina');
+  rutina.getRange(2, 7, 498, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(MUSCULOS, true).setAllowInvalid(false).build());
+  rutina.getRange(2, 9, 498, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(MATERIALES, true).setAllowInvalid(false).build());
+  rutina.getRange(1, 5).setNote('Una por serie separada con / (6–8 / 8–10 / 8–10) o una sola para todas (8–12).');
+  rutina.getRange(1, 6).setNote('Ejemplos: 3 min · 2,5 min · 90 s');
+  rutina.getRange(1, 8).setNote('Separados por comas: Hombro, Tríceps. Cuentan ½ serie en las estadísticas por músculo.');
+  return ss;
+}
+
+/* ===================================================================== */
+/* 4. APLICACIÓN WEB                                                      */
+/* ===================================================================== */
+
+function doGet() {
+  return responder_({ ok: true, mensaje: 'Script central de EDUX TRAINING activo.', version: VERSION_SCRIPT });
+}
+
+function doPost(e) {
+  let d;
+  try {
+    d = JSON.parse(e.postData.contents);
   } catch (err) {
-    return responder({ ok: false, error: err.message });
+    return responder_({ ok: false, error: 'Datos ilegibles (JSON inválido).' });
+  }
+  let u;
+  try {
+    u = usuarioPorClave_(d.clave);
+  } catch (err) {
+    return responder_({ ok: false, error: err.message });
+  }
+  if (!u) return responder_({ ok: false, error: 'Clave incorrecta.' });
+
+  try {
+    if (d.tipo === 'ping') return responder_({ ok: true, mensaje: 'Conexión correcta.', nombre: u.nombre, version: VERSION_SCRIPT });
+    if (TIPOS_ADMIN.indexOf(d.tipo) >= 0) {
+      if (u.rol !== 'admin') return responder_({ ok: false, error: 'Solo el administrador puede hacer esto.' });
+      return conBloqueo_(function () { return accionAdmin_(d); });
+    }
+    const ss = SpreadsheetApp.openById(u.hoja);
+    switch (d.tipo) {
+      case 'datos': {
+        const r = leerDatos_(ss, d.tengo);
+        r.admin = u.rol === 'admin';
+        r.usuario = { nombre: u.nombre, email: u.email };
+        return responder_(r);
+      }
+      case 'sesion': return conBloqueo_(function () { return guardarSesion_(ss, d.sesion, u); });
+      case 'perfil': return conBloqueo_(function () { return guardarPerfil_(ss, d.perfil); });
+      case 'peso': return conBloqueo_(function () { return guardarPeso_(ss, d.fecha, d.peso); });
+      case 'descanso': return conBloqueo_(function () { return guardarDescanso_(ss, d.ejercicio, d.segundos); });
+    }
+    return responder_({ ok: false, error: 'Tipo de petición desconocido.' });
+  } catch (err) {
+    return responder_({ ok: false, error: err.message });
   }
 }
 
-/** Abrir la URL en el navegador solo confirma que el script está publicado. */
-function doGet() {
-  return responder({ ok: true, mensaje: 'Script de EDUX TRAINING activo. Usa la app para enviar sesiones.' });
-}
-
-/** Ejecuta una escritura con el bloqueo del script (una a la vez). */
-function conBloqueo(fn) {
+function conBloqueo_(fn) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) return responder({ ok: false, error: 'La hoja está ocupada, reintenta en un momento.' });
+  if (!lock.tryLock(30000)) return responder_({ ok: false, error: 'La hoja está ocupada, reintenta en un momento.' });
   try {
-    return responder(fn());
+    return responder_(fn());
   } finally {
     lock.releaseLock();
   }
 }
 
-function responder(obj) {
+function responder_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/* ============================ Sesiones ============================ */
+/* ===================================================================== */
+/* 5. LECTURA                                                             */
+/* ===================================================================== */
 
-function guardarSesion(sesion, props) {
-  const filas = construirFilas(sesion);              // valida todo antes de escribir
-  const tiempos = construirTiempos(sesion);
+/** Filas de datos (sin cabecera) de una pestaña */
+function filas_(ss, nombre, columnas) {
+  const h = ss.getSheetByName(nombre);
+  if (!h || h.getLastRow() < 2) return [];
+  return h.getRange(2, 1, h.getLastRow() - 1, columnas).getValues();
+}
 
-  // Si ya la recibimos (p. ej. se cortó la conexión justo después), no la duplicamos.
-  if (props.getProperty(PREFIJO_ENVIADA + sesion.id)) return { ok: true, duplicada: true, filas: 0 };
+function leerRutina_(ss) {
+  const out = [];
+  const ordenSesion = [];
+  filas_(ss, 'Rutina', 9).forEach(function (f, i) {
+    const sesion = texto_(f[0]);
+    const ejercicio = texto_(f[2]);
+    if (!sesion || !ejercicio) return;
+    if (ordenSesion.indexOf(sesion) < 0) ordenSesion.push(sesion);
+    const series = Math.max(1, Math.min(10, Math.round(aNumero_(f[3]) || 3)));
+    const reps = texto_(f[4]) || '8–12';
+    const partes = reps.split('/').map(function (x) { return x.trim(); }).filter(String);
+    const objetivos = [];
+    for (let k = 0; k < series; k++) objetivos.push(partes[Math.min(k, partes.length - 1)] || reps);
+    const material = MATERIALES.indexOf(texto_(f[8])) >= 0 ? texto_(f[8]) : 'Otro';
+    out.push({
+      sesion: sesion, orden: aNumero_(f[1]) || i + 1, ejercicio: ejercicio, series: series, objetivos: objetivos,
+      descanso: segundosDescanso_(f[5]), principal: musculoValido_(f[6]),
+      secundarios: texto_(f[7]).split(/[,;·]/).map(musculoValido_).filter(String), material: material
+    });
+  });
+  out.sort(function (a, b) {
+    return (ordenSesion.indexOf(a.sesion) - ordenSesion.indexOf(b.sesion)) || (a.orden - b.orden);
+  });
+  return out;
+}
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(HOJA_REGISTRO);
-  if (!hoja) throw new Error('No existe la pestaña "' + HOJA_REGISTRO + '".');
-
-  const fila = primeraFilaLibre(hoja);
-  asegurarFilas(hoja, fila + filas.length - 1);
-  hoja.getRange(fila, 1, filas.length, NUM_COLUMNAS).setValues(filas);
-  hoja.getRange(fila, 1, filas.length, 1).setNumberFormat('dd/mm/yyyy');
-
-  if (tiempos.length) {
-    const ht = hojaTiempos(true);
-    const ft = ht.getLastRow() + 1;
-    asegurarFilas(ht, ft + tiempos.length - 1);
-    ht.getRange(ft, 1, tiempos.length, 4).setValues(tiempos);
-    ht.getRange(ft, 1, tiempos.length, 1).setNumberFormat('dd/mm/yyyy');
+function leerPerfil_(ss) {
+  const h = ss.getSheetByName('Perfil');
+  if (!h) return null;
+  const tz = ss.getSpreadsheetTimeZone();
+  const v = h.getRange(1, 1, Math.max(h.getLastRow(), 6), 5).getValues();
+  const dato = function (etiqueta) {
+    for (let i = 0; i < v.length; i++) if (texto_(v[i][0]) === etiqueta) return v[i][1];
+    return '';
+  };
+  const pesos = [];
+  for (let i = 1; i < v.length; i++) {
+    const f = normalizarFecha_(v[i][3], tz);
+    const p = aNumero_(v[i][4]);
+    if (f && p !== null) pesos.push([f, p]);
   }
-  SpreadsheetApp.flush();
-
-  props.setProperty(PREFIJO_ENVIADA + sesion.id, new Date().toISOString());
-  return { ok: true, filas: filas.length, desdeFila: fila };
+  pesos.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+  const rec = aNumero_(dato(PERFIL_CAMPOS.recordatorio));
+  return {
+    nombre: texto_(dato(PERFIL_CAMPOS.nombre)),
+    nacimiento: normalizarFecha_(dato(PERFIL_CAMPOS.nacimiento), tz), altura: aNumero_(dato(PERFIL_CAMPOS.altura)),
+    recordatorio: rec === null ? RECORDATORIO_DEFECTO : rec, pesos: pesos
+  };
 }
 
 /**
- * Convierte la sesión de la app en filas [A..H] para "Registro".
- * Lanza un error (y no se escribe nada) si algún dato no es válido.
+ * Todas las sesiones de la hoja: une Sesiones, Registro y Tiempos por ID de sesión.
+ * Las filas añadidas a mano sin ID se agrupan por fecha y sesión.
  */
-function construirFilas(sesion) {
+function leerSesiones_(ss) {
+  const tz = ss.getSpreadsheetTimeZone();
+  const mapa = {};
+  const orden = [];
+  const obtener = function (id, fecha, sesion) {
+    if (!mapa[id]) {
+      mapa[id] = { id: id, fecha: fecha, sesion: sesion, origen: '', duracion: 0, filas: [], tiempos: [] };
+      orden.push(id);
+    }
+    return mapa[id];
+  };
+  filas_(ss, 'Sesiones', 9).forEach(function (f) {
+    const fecha = normalizarFecha_(f[1], tz);
+    if (!fecha) return;
+    const id = texto_(f[0]) || ('manual:' + fecha + ':' + texto_(f[2]));
+    const s = obtener(id, fecha, texto_(f[2]));
+    s.origen = texto_(f[7]);
+    s.duracion = aNumero_(f[4]) || 0;
+  });
+  filas_(ss, 'Registro', 10).forEach(function (f) {
+    const fecha = normalizarFecha_(f[1], tz);
+    const ejercicio = texto_(f[3]);
+    const reps = aNumero_(f[6]);
+    if (!fecha || !ejercicio || reps === null) return;
+    const id = texto_(f[0]) || ('manual:' + fecha + ':' + texto_(f[2]));
+    obtener(id, fecha, texto_(f[2])).filas.push([ejercicio, aNumero_(f[4]) || 0, aNumero_(f[5]) || 0, reps, texto_(f[7])]);
+  });
+  filas_(ss, 'Tiempos', 3).forEach(function (f) {
+    const s = mapa[texto_(f[0])];
+    const min = aNumero_(f[2]);
+    if (s && texto_(f[1]) && min !== null) s.tiempos.push([texto_(f[1]), min]);
+  });
+  return orden.map(function (id) { return mapa[id]; }).sort(function (a, b) {
+    return a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0;
+  });
+}
+
+/** Huella corta del contenido de una sesión (si cambia algo, cambia la huella) */
+function huella_(s) {
+  return md5_(JSON.stringify([s.id, s.fecha, s.sesion, s.origen, s.duracion, s.filas, s.tiempos])).slice(0, 12);
+}
+
+/**
+ * Datos para la app. `tengo` = huellas de las sesiones que la app ya tiene:
+ * de esas solo se devuelve {id, huella}; del resto, la sesión completa.
+ */
+function leerDatos_(ss, tengo) {
+  const conocidas = {};
+  (Array.isArray(tengo) ? tengo : []).forEach(function (h) { conocidas[h] = true; });
+  let nuevas = 0;
+  const sesiones = leerSesiones_(ss).map(function (s) {
+    const h = huella_(s);
+    if (conocidas[h]) return { id: s.id, huella: h };
+    nuevas++;
+    s.huella = h;
+    return s;
+  });
+  return { ok: true, version: VERSION_SCRIPT, rutina: leerRutina_(ss), perfil: leerPerfil_(ss), sesiones: sesiones, nuevas: nuevas };
+}
+
+/* ===================================================================== */
+/* 6. ESCRITURA                                                           */
+/* ===================================================================== */
+
+function guardarSesion_(ss, sesion, u) {
   if (!sesion || typeof sesion !== 'object') throw new Error('Falta la sesión.');
   if (!sesion.id || typeof sesion.id !== 'string') throw new Error('La sesión no tiene identificador.');
-  if (SESIONES_VALIDAS.indexOf(sesion.sesion) === -1) throw new Error('Sesión desconocida: ' + sesion.sesion);
-
-  const fecha = parsearFecha(sesion.fecha);
-  if (!Array.isArray(sesion.ejercicios) || sesion.ejercicios.length === 0) {
-    throw new Error('La sesión no tiene ejercicios.');
-  }
+  const nombreSesion = texto_(sesion.sesion);
+  if (!nombreSesion) throw new Error('La sesión no tiene nombre.');
+  const fecha = parsearFecha_(sesion.fecha);
+  if (!Array.isArray(sesion.ejercicios) || !sesion.ejercicios.length) throw new Error('La sesión no tiene ejercicios.');
 
   const filas = [];
+  let volumen = 0;
   sesion.ejercicios.forEach(function (ej) {
     if (!ej.nombre || typeof ej.nombre !== 'string') throw new Error('Ejercicio sin nombre.');
     if (!Array.isArray(ej.series)) throw new Error('Ejercicio sin series: ' + ej.nombre);
     const nota = typeof ej.nota === 'string' ? ej.nota.trim() : '';
-
     ej.series.forEach(function (s, i) {
-      const serie = Number(s.serie);
-      const peso = Number(s.peso);
-      const reps = Number(s.reps);
+      const serie = Number(s.serie), peso = Number(s.peso), reps = Number(s.reps);
       if (!Number.isInteger(serie) || serie < 1 || serie > 10) throw new Error('Serie nº no válida en ' + ej.nombre);
       if (!isFinite(peso) || peso < 0) throw new Error('Peso no válido en ' + ej.nombre + ' (serie ' + serie + ')');
       if (!Number.isInteger(reps) || reps < 0 || reps > 100) throw new Error('Reps no válidas en ' + ej.nombre + ' (serie ' + serie + ')');
-
-      // La nota del ejercicio va solo en la fila de su primera serie enviada.
-      filas.push([fecha, '', sesion.sesion, ej.nombre, serie, peso, reps, i === 0 ? nota : '']);
+      volumen += peso * reps;
+      filas.push([sesion.id, fecha, nombreSesion, ej.nombre, serie, peso, reps, i === 0 ? nota : '', peso * reps, rm1_(peso, reps)]);
     });
   });
+  if (!filas.length) throw new Error('La sesión no tiene ninguna serie.');
 
-  if (filas.length === 0) throw new Error('La sesión no tiene ninguna serie.');
-  return filas;
-}
-
-/** Filas [Fecha, Sesión, Ejercicio, Minutos] para la pestaña Tiempos (puede ir vacío). */
-function construirTiempos(sesion) {
-  const fecha = parsearFecha(sesion.fecha);
-  const out = [];
-  (sesion.tiempos || []).forEach(function (t) {
-    const min = Number(t.minutos);
-    if (!t.ejercicio || !isFinite(min) || min < 0 || min > 600) return;
-    out.push([fecha, sesion.sesion, String(t.ejercicio), Math.round(min * 10) / 10]);
-  });
-  const total = Number(sesion.duracion);
-  if (isFinite(total) && total > 0 && total <= 600) {
-    out.push([fecha, sesion.sesion, TOTAL_SESION, Math.round(total * 10) / 10]);
+  // Si ya la recibimos (p. ej. se cortó la conexión justo después), no se duplica
+  if (filas_(ss, 'Sesiones', 1).some(function (f) { return texto_(f[0]) === sesion.id; })) {
+    return { ok: true, duplicada: true, filas: 0 };
   }
-  return out;
-}
 
-/** "2026-11-03" → Date a las 12:00 (las 12:00 evitan saltos de día por zona horaria). */
-function parsearFecha(texto) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(texto || ''));
-  if (!m) throw new Error('Fecha no válida: ' + texto);
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
-}
-
-/**
- * Primera fila vacía después del último dato en la columna A (Fecha) de Registro.
- * No usamos getLastRow() porque las ARRAYFORMULA de I/J y las instrucciones
- * de la columna L hacen que no refleje dónde acaban los datos.
- */
-function primeraFilaLibre(hoja) {
-  const ultima = hoja.getLastRow();
-  if (ultima < PRIMERA_FILA_DATOS) return PRIMERA_FILA_DATOS;
-  const columnaA = hoja.getRange(PRIMERA_FILA_DATOS, 1, ultima - PRIMERA_FILA_DATOS + 1, 1).getValues();
-  for (let i = columnaA.length - 1; i >= 0; i--) {
-    if (columnaA[i][0] !== '' && columnaA[i][0] !== null) return PRIMERA_FILA_DATOS + i + 1;
-  }
-  return PRIMERA_FILA_DATOS;
-}
-
-function asegurarFilas(hoja, ultimaNecesaria) {
-  if (ultimaNecesaria > hoja.getMaxRows()) {
-    hoja.insertRowsAfter(hoja.getMaxRows(), ultimaNecesaria - hoja.getMaxRows() + 100);
-  }
-}
-
-/* ============================ Lectura ============================ */
-
-/**
- * Todas las series de "Registro": [fecha "yyyy-MM-dd", sesión, ejercicio, serie nº, peso, reps, nota]
- * Ignora filas sin fecha, sin ejercicio o sin reps.
- */
-function leerRegistro() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(HOJA_REGISTRO);
-  if (!hoja) return [];
-  const ultima = hoja.getLastRow();
-  if (ultima < PRIMERA_FILA_DATOS) return [];
+  const tiempos = (sesion.tiempos || []).filter(function (t) {
+    const m = Number(t.minutos);
+    return t.ejercicio && isFinite(m) && m >= 0 && m <= 600;
+  }).map(function (t) { return [sesion.id, String(t.ejercicio), Math.round(Number(t.minutos) * 10) / 10]; });
+  const duracion = Number(sesion.duracion);
   const tz = ss.getSpreadsheetTimeZone();
-  const valores = hoja.getRange(PRIMERA_FILA_DATOS, 1, ultima - PRIMERA_FILA_DATOS + 1, NUM_COLUMNAS).getValues();
+  const inicio = sesion.inicio ? Utilities.formatDate(new Date(sesion.inicio), tz, 'HH:mm') : '';
 
-  const filas = [];
-  valores.forEach(function (v) {
-    const fecha = normalizarFecha(v[0], tz);
-    const ejercicio = String(v[3] || '').trim();
-    const reps = aNumero(v[6]);
-    if (!fecha || !ejercicio || reps === null) return;
-    filas.push([fecha, String(v[2] || '').trim(), ejercicio, aNumero(v[4]) || 0, aNumero(v[5]) || 0, reps, String(v[7] || '').trim()]);
+  agregarFilas_(ss.getSheetByName('Registro'), filas, 2);
+  if (tiempos.length) agregarFilas_(ss.getSheetByName('Tiempos'), tiempos);
+  agregarFilas_(ss.getSheetByName('Sesiones'), [[sesion.id, fecha, nombreSesion, inicio,
+    isFinite(duracion) && duracion > 0 ? Math.round(duracion * 10) / 10 : '', filas.length, volumen, 'App', new Date()]], 2);
+  ss.getSheetByName('Sesiones').getRange(ss.getSheetByName('Sesiones').getLastRow(), 9).setNumberFormat('dd/mm/yyyy HH:mm');
+  actualizarProgreso_(ss);
+  if (u && u.fila) pestanaUsuarios_().getRange(u.fila, COL.ultimo).setValue(fecha).setNumberFormat('dd/mm/yyyy');
+  SpreadsheetApp.flush();
+  return { ok: true, filas: filas.length };
+}
+
+function agregarFilas_(h, filas, colFecha) {
+  if (!filas.length) return;
+  const inicio = h.getLastRow() + 1;
+  const ultima = inicio + filas.length - 1;
+  if (ultima > h.getMaxRows()) h.insertRowsAfter(h.getMaxRows(), ultima - h.getMaxRows() + 100);
+  h.getRange(inicio, 1, filas.length, filas[0].length).setValues(filas);
+  if (colFecha) h.getRange(inicio, colFecha, filas.length, 1).setNumberFormat('dd/mm/yyyy');
+}
+
+/** Rehace la pestaña Progreso (resumen por ejercicio) a partir de los datos */
+function actualizarProgreso_(ss) {
+  const h = ss.getSheetByName('Progreso');
+  if (!h) return;
+  const rutina = leerRutina_(ss);
+  const porEj = {};
+  leerSesiones_(ss).forEach(function (s) {
+    const dias = {};
+    s.filas.forEach(function (f) {
+      const e = porEj[f[0]] = porEj[f[0]] || { series: 0, dias: 0, mejorPeso: 0, mejorRm: 0, ultima: '', maxUltima: 0, sesion: s.sesion };
+      e.series++;
+      e.mejorPeso = Math.max(e.mejorPeso, f[2]);
+      e.mejorRm = Math.max(e.mejorRm, rm1_(f[2], f[3]));
+      if (!dias[f[0]]) { dias[f[0]] = true; e.dias++; }
+      if (s.fecha > e.ultima) { e.ultima = s.fecha; e.maxUltima = f[2]; } else if (s.fecha === e.ultima) e.maxUltima = Math.max(e.maxUltima, f[2]);
+    });
   });
-  return filas;
-}
-
-/** { "Press banca": "3,5 min", ... } desde la pestaña Rutina (C = ejercicio, F = descanso) */
-function leerDescansos() {
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_RUTINA);
-  const out = {};
-  if (!hoja || hoja.getLastRow() < 2) return out;
-  hoja.getRange(2, 1, hoja.getLastRow() - 1, 6).getValues().forEach(function (v) {
-    const nombre = String(v[2] || '').trim();
-    const descanso = String(v[5] || '').trim();
-    if (nombre && descanso) out[nombre] = descanso;
+  const nombres = rutina.map(function (r) { return r.ejercicio; });
+  Object.keys(porEj).forEach(function (n) { if (nombres.indexOf(n) < 0) nombres.push(n); });
+  const sesionDe = {};
+  rutina.forEach(function (r) { sesionDe[r.ejercicio] = r.sesion; });
+  const filas = nombres.map(function (n) {
+    const e = porEj[n];
+    return e ? [n, sesionDe[n] || e.sesion, e.series, e.dias, e.mejorPeso, e.mejorRm, fechaDe_(e.ultima), e.maxUltima]
+      : [n, sesionDe[n] || '', 0, 0, '', '', '', ''];
   });
-  return out;
-}
-
-/** [[fecha, sesión, ejercicio, minutos], ...] desde la pestaña Tiempos */
-function leerTiempos() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(HOJA_TIEMPOS);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-  const tz = ss.getSpreadsheetTimeZone();
-  const out = [];
-  hoja.getRange(2, 1, hoja.getLastRow() - 1, 4).getValues().forEach(function (v) {
-    const fecha = normalizarFecha(v[0], tz);
-    const min = aNumero(v[3]);
-    if (fecha && v[2] && min !== null) out.push([fecha, String(v[1] || '').trim(), String(v[2]).trim(), min]);
-  });
-  return out;
-}
-
-/** Fecha de la celda (Date o texto "dd/mm/aaaa") → "yyyy-MM-dd", o null. */
-function normalizarFecha(v, tz) {
-  if (v instanceof Date && !isNaN(v.getTime())) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v || '').trim());
-  if (!m) return null;
-  return m[3] + '-' + dos(m[2]) + '-' + dos(m[1]);
-}
-
-function dos(x) { return ('0' + x).slice(-2); }
-
-/** Número de la celda (acepta "62,5"), o null si está vacía o no es un número. */
-function aNumero(v) {
-  if (typeof v === 'number') return v;
-  const t = String(v === null || v === undefined ? '' : v).trim().replace(',', '.');
-  if (t === '') return null;
-  const n = Number(t);
-  return isFinite(n) ? n : null;
-}
-
-/* ============================ Descansos (pestaña Rutina) ============================ */
-
-function guardarDescanso(ejercicio, segundos) {
-  const seg = Number(segundos);
-  if (!isFinite(seg) || seg < 15 || seg > 900) throw new Error('Descanso no válido.');
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_RUTINA);
-  if (!hoja) throw new Error('No existe la pestaña "' + HOJA_RUTINA + '".');
-  const nombres = hoja.getRange(2, 3, Math.max(hoja.getLastRow() - 1, 1), 1).getValues();
-  for (let i = 0; i < nombres.length; i++) {
-    if (String(nombres[i][0]).trim() === ejercicio) {
-      const texto = String(Math.round((seg / 60) * 100) / 100).replace('.', ',') + ' min';
-      hoja.getRange(i + 2, 6).setValue(texto);
-      return { ok: true, descanso: texto };
-    }
+  if (h.getMaxRows() > 1) h.getRange(2, 1, h.getMaxRows() - 1, CABECERAS.Progreso.length).clearContent();
+  if (filas.length) {
+    if (filas.length + 1 > h.getMaxRows()) h.insertRowsAfter(h.getMaxRows(), filas.length + 1 - h.getMaxRows());
+    h.getRange(2, 1, filas.length, CABECERAS.Progreso.length).setValues(filas);
+    h.getRange(2, 7, filas.length, 1).setNumberFormat('dd/mm/yyyy');
   }
-  throw new Error('No encuentro "' + ejercicio + '" en la pestaña Rutina.');
 }
 
-/* ============================ Tiempos ============================ */
-
-function hojaTiempos(crear) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja = ss.getSheetByName(HOJA_TIEMPOS);
-  if (!hoja && crear) {
-    hoja = ss.insertSheet(HOJA_TIEMPOS);
-    hoja.getRange(1, 1, 1, 4).setValues([['Fecha', 'Sesión', 'Ejercicio', 'Minutos']]).setFontWeight('bold');
-    hoja.setFrozenRows(1);
-  }
-  return hoja;
-}
-
-/* ============================ Perfil ============================ */
-/*  Pestaña Perfil:
- *    A1 Dato | B1 Valor          D1 Fecha | E1 Peso (kg)
- *    A2 Nombre                   (historial de peso, una fila por registro)
- *    A3 Fecha de nacimiento
- *    A4 Altura (cm)
- */
-const CAMPOS_PERFIL = { nombre: 'Nombre', nacimiento: 'Fecha de nacimiento', altura: 'Altura (cm)' };
-
-function hojaPerfil(crear) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja = ss.getSheetByName(HOJA_PERFIL);
-  if (!hoja && crear) {
-    hoja = ss.insertSheet(HOJA_PERFIL);
-    hoja.getRange(1, 1, 4, 2).setValues([['Dato', 'Valor'], [CAMPOS_PERFIL.nombre, ''], [CAMPOS_PERFIL.nacimiento, ''], [CAMPOS_PERFIL.altura, '']]);
-    hoja.getRange(1, 4, 1, 2).setValues([['Fecha', 'Peso (kg)']]);
-    hoja.getRange(1, 1, 1, 5).setFontWeight('bold');
-    hoja.setFrozenRows(1);
-  }
-  return hoja;
-}
-
-/** Fila (1-based) de un dato del perfil, buscando la etiqueta en la columna A */
-function filaCampo(hoja, etiqueta) {
-  const etiquetas = hoja.getRange(1, 1, Math.max(hoja.getLastRow(), 4), 1).getValues();
-  for (let i = 0; i < etiquetas.length; i++) if (String(etiquetas[i][0]).trim() === etiqueta) return i + 1;
+function filaCampoPerfil_(h, etiqueta) {
+  const v = h.getRange(1, 1, Math.max(h.getLastRow(), 6), 1).getValues();
+  for (let i = 0; i < v.length; i++) if (texto_(v[i][0]) === etiqueta) return i + 1;
   return null;
 }
 
-function leerPerfil() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = hojaPerfil(false);
-  if (!hoja) return null;
-  const tz = ss.getSpreadsheetTimeZone();
-  const valor = function (etiqueta) {
-    const f = filaCampo(hoja, etiqueta);
-    return f ? hoja.getRange(f, 2).getValue() : '';
-  };
-  const pesos = [];
-  const ultima = ultimaFilaColumna(hoja, 4);
-  if (ultima >= 2) {
-    hoja.getRange(2, 4, ultima - 1, 2).getValues().forEach(function (v) {
-      const f = normalizarFecha(v[0], tz);
-      const p = aNumero(v[1]);
-      if (f && p !== null) pesos.push([f, p]);
-    });
-  }
-  pesos.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
-  return {
-    nombre: String(valor(CAMPOS_PERFIL.nombre) || '').trim(),
-    nacimiento: normalizarFecha(valor(CAMPOS_PERFIL.nacimiento), tz),
-    altura: aNumero(valor(CAMPOS_PERFIL.altura)),
-    pesos: pesos
-  };
-}
-
-function guardarPerfil(p) {
+function guardarPerfil_(ss, p) {
   if (!p || typeof p !== 'object') throw new Error('Faltan los datos del perfil.');
   const altura = p.altura === '' || p.altura === null || p.altura === undefined ? '' : Number(p.altura);
   if (altura !== '' && (!isFinite(altura) || altura < 100 || altura > 250)) throw new Error('Altura no válida (en cm).');
-  const nacimiento = p.nacimiento ? parsearFecha(p.nacimiento) : '';
-  const hoja = hojaPerfil(true);
+  const recordatorio = p.recordatorio === undefined ? undefined : Number(p.recordatorio);
+  if (recordatorio !== undefined && (!Number.isInteger(recordatorio) || recordatorio < 0 || recordatorio > 60)) throw new Error('Recordatorio no válido (días, 0 = desactivado).');
+  const h = ss.getSheetByName('Perfil');
   const escribir = function (etiqueta, valor, formato) {
-    let f = filaCampo(hoja, etiqueta);
-    if (!f) { f = hoja.getLastRow() + 1; hoja.getRange(f, 1).setValue(etiqueta); }
-    const celda = hoja.getRange(f, 2);
+    let f = filaCampoPerfil_(h, etiqueta);
+    if (!f) { f = h.getLastRow() + 1; h.getRange(f, 1).setValue(etiqueta); }
+    const celda = h.getRange(f, 2);
     celda.setValue(valor);
     if (formato) celda.setNumberFormat(formato);
   };
-  escribir(CAMPOS_PERFIL.nombre, String(p.nombre || '').trim().slice(0, 40));
-  escribir(CAMPOS_PERFIL.nacimiento, nacimiento, 'dd/mm/yyyy');
-  escribir(CAMPOS_PERFIL.altura, altura);
+  if (p.nombre !== undefined) escribir(PERFIL_CAMPOS.nombre, texto_(p.nombre).slice(0, 40));
+  if (p.nacimiento !== undefined) escribir(PERFIL_CAMPOS.nacimiento, p.nacimiento ? parsearFecha_(p.nacimiento) : '', 'dd/mm/yyyy');
+  if (p.altura !== undefined) escribir(PERFIL_CAMPOS.altura, altura);
+  if (recordatorio !== undefined) escribir(PERFIL_CAMPOS.recordatorio, recordatorio);
   SpreadsheetApp.flush();
   return { ok: true };
 }
 
 /** Añade (o corrige, si ya hay uno ese día) un registro de peso corporal */
-function guardarPeso(fechaTxt, peso) {
+function guardarPeso_(ss, fechaTxt, peso) {
   const kg = Number(peso);
   if (!isFinite(kg) || kg < 30 || kg > 300) throw new Error('Peso no válido.');
-  const fecha = parsearFecha(fechaTxt);
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const fecha = parsearFecha_(fechaTxt);
   const tz = ss.getSpreadsheetTimeZone();
-  const hoja = hojaPerfil(true);
-  const ultima = ultimaFilaColumna(hoja, 4);
-  let fila = ultima + 1;
-  if (ultima >= 2) {
-    const fechas = hoja.getRange(2, 4, ultima - 1, 1).getValues();
-    for (let i = 0; i < fechas.length; i++) {
-      if (normalizarFecha(fechas[i][0], tz) === fechaTxt) { fila = i + 2; break; }
-    }
+  const h = ss.getSheetByName('Perfil');
+  const v = h.getRange(1, 4, Math.max(h.getLastRow(), 1), 1).getValues();
+  let fila = 0;
+  let ultima = 1;
+  for (let i = 1; i < v.length; i++) {
+    if (v[i][0] !== '' && v[i][0] !== null) ultima = i + 1;
+    if (normalizarFecha_(v[i][0], tz) === fechaTxt) fila = i + 1;
   }
-  asegurarFilas(hoja, fila);
-  hoja.getRange(fila, 4, 1, 2).setValues([[fecha, kg]]);
-  hoja.getRange(fila, 4).setNumberFormat('dd/mm/yyyy');
+  if (!fila) fila = ultima + 1;
+  h.getRange(fila, 4, 1, 2).setValues([[fecha, kg]]);
+  h.getRange(fila, 4).setNumberFormat('dd/mm/yyyy');
   SpreadsheetApp.flush();
   return { ok: true };
 }
 
-/** Última fila con datos en una columna concreta (las demás columnas pueden ser más largas) */
-function ultimaFilaColumna(hoja, col) {
-  const ultima = hoja.getLastRow();
-  if (ultima < 1) return 0;
-  const v = hoja.getRange(1, col, ultima, 1).getValues();
-  for (let i = v.length - 1; i >= 0; i--) if (v[i][0] !== '' && v[i][0] !== null) return i + 1;
-  return 0;
+function guardarDescanso_(ss, ejercicio, segundos) {
+  const seg = Number(segundos);
+  if (!isFinite(seg) || seg < 15 || seg > 900) throw new Error('Descanso no válido.');
+  const h = ss.getSheetByName('Rutina');
+  const v = filas_(ss, 'Rutina', 3);
+  for (let i = 0; i < v.length; i++) {
+    if (texto_(v[i][2]) === ejercicio) {
+      const t = textoDescanso_(seg);
+      h.getRange(i + 2, 6).setValue(t);
+      return { ok: true, descanso: t };
+    }
+  }
+  throw new Error('No encuentro "' + ejercicio + '" en la pestaña Rutina.');
 }
 
-/* ============================ Resumen semanal por email ============================ */
+/* ===================================================================== */
+/* 7. EMAILS AUTOMÁTICOS                                                  */
+/* ===================================================================== */
 
-/**
- * Ejecuta esta función UNA VEZ desde el editor para activar el email de cada lunes
- * hacia las 7:00 (zona horaria del proyecto: Configuración del proyecto ⚙).
- * Si la ejecutas otra vez, sustituye el activador anterior (no se duplica).
- */
-function activarResumenSemanal() {
-  desactivarResumenSemanal();
-  ScriptApp.newTrigger('enviarResumenSemanal')
-    .timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).nearMinute(0).everyWeeks(1)
-    .create();
-  Logger.log('✓ Resumen semanal activado: cada lunes hacia las 7:00 (zona horaria: ' + Session.getScriptTimeZone() + ').');
-}
-
-/** Quita el envío automático del resumen semanal. */
-function desactivarResumenSemanal() {
+/** Crea (o rehace) los dos activadores: resumen de los lunes y recordatorios diarios */
+function activarAvisos() {
+  const manejadores = ['enviarResumenesSemanales', 'enviarRecordatorios'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'enviarResumenSemanal') ScriptApp.deleteTrigger(t);
+    if (manejadores.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
+  ScriptApp.newTrigger('enviarResumenesSemanales').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).nearMinute(0).everyWeeks(1).create();
+  ScriptApp.newTrigger('enviarRecordatorios').timeBased().atHour(18).everyDays(1).create();
+  const ui = ui_();
+  if (ui) {
+    ui.alert('Emails activados',
+      'Resumen semanal: cada lunes hacia las 7:00.\nRecordatorio: si alguien lleva los días de su Perfil sin entrenar (7 por defecto), hacia las 18:00.\n\n' +
+      'Zona horaria del script: ' + Session.getScriptTimeZone() + ' (cámbiala en ⚙ Configuración del proyecto si no es Madrid).', ui.ButtonSet.OK);
+  }
 }
 
-/** Envía ahora mismo el resumen de la semana pasada (para probarlo). */
+function hoyIso_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function enviarResumenesSemanales(_evento, hoyIso) {
+  const hoy = typeof hoyIso === 'string' ? hoyIso : hoyIso_();
+  let enviados = 0;
+  leerUsuarios_().forEach(function (u) {
+    if (!u.activo || !u.email) return;
+    try { enviarResumen_(u, hoy); enviados++; } catch (e) { console.error('Resumen de ' + u.nombre + ': ' + e.message); }
+  });
+  return enviados;
+}
+
+function enviarResumen_(u, hoy, destino) {
+  const ss = SpreadsheetApp.openById(u.hoja);
+  const r = calcularResumen_(leerSesiones_(ss), leerRutina_(ss), hoy);
+  MailApp.sendEmail({ to: destino || u.email, subject: 'EDUX TRAINING · Tu semana (' + r.rango + ')', htmlBody: htmlResumen_(r, u.nombre), name: 'EDUX TRAINING' });
+}
+
+/** Envía ahora mismo el resumen de la semana pasada al administrador (para probarlo) */
 function probarResumenSemanal() {
-  enviarResumenSemanal();
-  Logger.log('✓ Resumen enviado a ' + Session.getEffectiveUser().getEmail());
+  const u = leerUsuarios_().filter(function (x) { return x.rol === 'admin'; })[0];
+  if (!u) throw new Error('Primero: menú EDUX → 1 · Instalar.');
+  enviarResumen_(u, hoyIso_(), Session.getEffectiveUser().getEmail());
+  const ui = ui_();
+  if (ui) ui.alert('Resumen enviado a ' + Session.getEffectiveUser().getEmail());
 }
 
-function enviarResumenSemanal() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tz = ss.getSpreadsheetTimeZone();
-  const hoyIso = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-  const r = calcularResumen(leerRegistro(), leerTiempos(), hoyIso);
-  const perfil = leerPerfil();
-  MailApp.sendEmail({
-    to: Session.getEffectiveUser().getEmail(),
-    subject: 'EDUX TRAINING · Tu semana (' + r.rango + ')',
-    htmlBody: htmlResumen(r, perfil && perfil.nombre),
-    name: 'EDUX TRAINING'
+/** Recordatorio a quien lleve los días de su Perfil sin entrenar (uno por cada parón) */
+function enviarRecordatorios(_evento, hoyIso) {
+  const hoy = typeof hoyIso === 'string' ? hoyIso : hoyIso_();
+  let enviados = 0;
+  leerUsuarios_().forEach(function (u) {
+    if (!u.activo || !u.email) return;
+    try {
+      const ss = SpreadsheetApp.openById(u.hoja);
+      const perfil = leerPerfil_(ss);
+      const dias = perfil ? perfil.recordatorio : RECORDATORIO_DEFECTO;
+      if (!dias || dias <= 0) return;
+      const sesiones = leerSesiones_(ss);
+      if (!sesiones.length) return;
+      const ultima = sesiones[sesiones.length - 1].fecha;
+      const sin = diasEntre_(ultima, hoy);
+      if (sin < dias) return;
+      if (isoDe_(u.recordatorioPor) === ultima) return;   // ya se le avisó en este parón
+      const siguiente = siguienteSesion_(sesiones, leerRutina_(ss));
+      MailApp.sendEmail({
+        to: u.email, subject: 'EDUX TRAINING · Llevas ' + sin + ' días sin entrenar', name: 'EDUX TRAINING',
+        htmlBody: plantillaEmail_('¿Volvemos, ' + esc_(u.nombre) + '?',
+          '<p style="color:#c3bdd4;line-height:1.5">Llevas <b style="color:#f4f2fa">' + sin + ' días</b> sin entrenar (último entreno: ' + fechaTxt_(ultima) + ').</p>' +
+          (siguiente ? cajaSiguiente_(siguiente) : '') +
+          '<p style="margin-top:20px"><a href="' + APP_URL + '" style="display:inline-block;padding:12px 22px;border-radius:999px;background:#7c3aed;color:#fff;font-weight:700;text-decoration:none">Abrir EDUX TRAINING</a></p>' +
+          '<p style="color:#8a8599;font-size:12px;margin-top:18px">Puedes cambiar los días del aviso (o desactivarlo con 0) en tu Perfil de la app.</p>')
+      });
+      pestanaUsuarios_().getRange(u.fila, COL.recordatorio, 1, 2).setValues([[fechaDe_(hoy), fechaDe_(ultima)]]).setNumberFormat('dd/mm/yyyy');
+      enviados++;
+    } catch (e) {
+      console.error('Recordatorio de ' + u.nombre + ': ' + e.message);
+    }
   });
+  return enviados;
 }
 
-/* --- fechas "yyyy-MM-dd" sin líos de zona horaria (aritmética en UTC) --- */
-function isoAUtc(iso) { const p = iso.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
-function utcAIso(d) { return d.toISOString().slice(0, 10); }
-function sumarDias(iso, n) { const d = isoAUtc(iso); d.setUTCDate(d.getUTCDate() + n); return utcAIso(d); }
-function lunesDe(iso) { const d = isoAUtc(iso); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return utcAIso(d); }
-const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-function fechaTxt(iso) { const d = isoAUtc(iso); return d.getUTCDate() + ' ' + MESES_C[d.getUTCMonth()]; }
-function numTxt(n, dec) { const f = Math.pow(10, dec === undefined ? 1 : dec); return String(Math.round(n * f) / f).replace('.', ','); }
-function volTxt(kg) { return kg >= 1000 ? numTxt(kg / 1000, 1) + ' t' : numTxt(kg, 0) + ' kg'; }
-function rm1(peso, reps) { return Math.round(peso * (1 + reps / 30) * 10) / 10; }
+function siguienteSesion_(sesiones, rutina) {
+  const orden = [];
+  rutina.forEach(function (r) { if (orden.indexOf(r.sesion) < 0) orden.push(r.sesion); });
+  if (!orden.length) return null;
+  for (let i = sesiones.length - 1; i >= 0; i--) {
+    const k = orden.indexOf(sesiones[i].sesion);
+    if (k >= 0) return orden[(k + 1) % orden.length];
+  }
+  return orden[0];
+}
 
 /**
- * Datos del resumen de la semana anterior a la de "hoyIso" (lunes a domingo).
+ * Datos del resumen de la semana anterior a la de `hoyIso` (lunes a domingo).
  * Función pura (sin acceso a la hoja) para poder probarla.
  */
-function calcularResumen(filas, tiempos, hoyIso) {
-  const lunes = lunesDe(hoyIso);
-  const ini = sumarDias(lunes, -7), fin = sumarDias(lunes, -1);
-  const iniPrev = sumarDias(ini, -7), finPrev = sumarDias(ini, -1);
+function calcularResumen_(sesiones, rutina, hoyIso) {
+  const lunes = lunesDe_(hoyIso);
+  const ini = sumarDias_(lunes, -7), fin = sumarDias_(lunes, -1);
+  const iniPrev = sumarDias_(ini, -7), finPrev = sumarDias_(ini, -1);
+  const musculosDe = {};
+  rutina.forEach(function (r) { musculosDe[r.ejercicio] = [r.principal].concat(r.secundarios).filter(String); });
 
   const semana = function (a, b) {
-    const sel = filas.filter(function (f) { return f[0] >= a && f[0] <= b; });
-    const sesiones = {};
-    let volumen = 0;
-    sel.forEach(function (f) { sesiones[f[0] + '|' + f[1]] = { fecha: f[0], sesion: f[1] }; volumen += f[4] * f[5]; });
-    const lista = Object.keys(sesiones).sort().map(function (k) { return sesiones[k]; });
-    let minutos = 0;
-    tiempos.forEach(function (t) { if (t[0] >= a && t[0] <= b && t[2] === TOTAL_SESION) minutos += t[3]; });
-    return { filas: sel, sesiones: lista, series: sel.length, volumen: volumen, minutos: minutos };
+    const sel = sesiones.filter(function (s) { return s.fecha >= a && s.fecha <= b; });
+    let series = 0, volumen = 0, minutos = 0;
+    sel.forEach(function (s) {
+      minutos += s.duracion || 0;
+      s.filas.forEach(function (f) { series++; volumen += f[2] * f[3]; });
+    });
+    return { sesiones: sel, series: series, volumen: volumen, minutos: minutos };
   };
   const act = semana(ini, fin);
   const prev = semana(iniPrev, finPrev);
 
-  // Series por músculo (principal 1, secundario ½)
   const musculos = {};
-  ORDEN_MUSCULOS.forEach(function (m) { musculos[m] = 0; });
-  act.filas.forEach(function (f) {
-    const m = MUSCULOS[f[2]];
-    if (!m) return;
-    m.forEach(function (mus, i) { musculos[mus] += i === 0 ? 1 : 0.5; });
+  MUSCULOS.forEach(function (m) { musculos[m] = 0; });
+  act.sesiones.forEach(function (s) {
+    s.filas.forEach(function (f) {
+      (musculosDe[f[0]] || []).forEach(function (m, i) { if (musculos[m] !== undefined) musculos[m] += i === 0 ? 1 : 0.5; });
+    });
   });
 
   // Récords batidos en la semana (la primera vez de un ejercicio no cuenta)
   const porEj = {};
-  filas.forEach(function (f) {
-    const k = f[2];
-    porEj[k] = porEj[k] || {};
-    const d = porEj[k][f[0]] = porEj[k][f[0]] || { peso: 0, rm: 0, sp: null, sr: null };
-    // Serie que da el peso máximo (a igual peso, la de más reps) y la del mejor 1RM
-    if (!d.sp || f[4] > d.sp[0] || (f[4] === d.sp[0] && f[5] > d.sp[1])) d.sp = [f[4], f[5]];
-    if (!d.sr || rm1(f[4], f[5]) > d.rm) d.sr = [f[4], f[5]];
-    d.peso = Math.max(d.peso, f[4]);
-    d.rm = Math.max(d.rm, rm1(f[4], f[5]));
+  sesiones.forEach(function (s) {
+    s.filas.forEach(function (f) {
+      porEj[f[0]] = porEj[f[0]] || {};
+      const d = porEj[f[0]][s.fecha] = porEj[f[0]][s.fecha] || { peso: 0, rm: 0, sp: null, sr: null };
+      if (!d.sp || f[2] > d.sp[0] || (f[2] === d.sp[0] && f[3] > d.sp[1])) d.sp = [f[2], f[3]];
+      if (!d.sr || rm1_(f[2], f[3]) > d.rm) d.sr = [f[2], f[3]];
+      d.peso = Math.max(d.peso, f[2]);
+      d.rm = Math.max(d.rm, rm1_(f[2], f[3]));
+    });
   });
-  const serie = function (s) { return '(' + numTxt(s[0], 2) + ' kg × ' + s[1] + (s[1] === 1 ? ' rep' : ' reps') + ')'; };
+  const serie = function (x) { return '(' + numTxt_(x[0], 2) + ' kg × ' + x[1] + (x[1] === 1 ? ' rep' : ' reps') + ')'; };
   const records = [];
   Object.keys(porEj).forEach(function (ej) {
-    const dias = Object.keys(porEj[ej]).sort();
     let bestP = null, bestR = null;
-    dias.forEach(function (dia) {
+    Object.keys(porEj[ej]).sort().forEach(function (dia) {
       const d = porEj[ej][dia];
       if (bestP !== null && dia >= ini && dia <= fin) {
-        if (d.peso > bestP) records.push({ ejercicio: ej, fecha: dia, texto: 'Peso ' + numTxt(d.peso, 2) + ' kg ' + serie(d.sp) + ' · antes ' + numTxt(bestP, 2) + ' kg' });
-        else if (d.rm > bestR) records.push({ ejercicio: ej, fecha: dia, texto: '1RM est. ' + numTxt(d.rm) + ' kg ' + serie(d.sr) + ' · antes ' + numTxt(bestR) + ' kg' });
+        if (d.peso > bestP) records.push({ ejercicio: ej, fecha: dia, texto: 'Peso ' + numTxt_(d.peso, 2) + ' kg ' + serie(d.sp) + ' · antes ' + numTxt_(bestP, 2) + ' kg' });
+        else if (d.rm > bestR) records.push({ ejercicio: ej, fecha: dia, texto: '1RM est. ' + numTxt_(d.rm) + ' kg ' + serie(d.sr) + ' · antes ' + numTxt_(bestR) + ' kg' });
       }
       bestP = bestP === null ? d.peso : Math.max(bestP, d.peso);
       bestR = bestR === null ? d.rm : Math.max(bestR, d.rm);
     });
   });
 
-  // Siguiente sesión según la rotación
-  let ultima = null;
-  filas.forEach(function (f) {
-    if (SESIONES_VALIDAS.indexOf(f[1]) === -1) return;
-    if (!ultima || f[0] > ultima.fecha || (f[0] === ultima.fecha && SESIONES_VALIDAS.indexOf(f[1]) > SESIONES_VALIDAS.indexOf(ultima.sesion))) {
-      ultima = { fecha: f[0], sesion: f[1] };
-    }
-  });
-  const siguiente = ultima ? SESIONES_VALIDAS[(SESIONES_VALIDAS.indexOf(ultima.sesion) + 1) % SESIONES_VALIDAS.length] : SESIONES_VALIDAS[0];
-
   return {
-    rango: fechaTxt(ini) + ' – ' + fechaTxt(fin),
-    act: act, prev: prev, musculos: musculos, records: records, siguiente: siguiente
+    rango: fechaTxt_(ini) + ' – ' + fechaTxt_(fin),
+    act: act, prev: prev, musculos: musculos, records: records,
+    siguiente: siguienteSesion_(sesiones, rutina)
   };
 }
 
-function htmlResumen(r, nombre) {
-  const morado = '#9b6cf6';
+function plantillaEmail_(titulo, cuerpo) {
+  return '<div style="background:#09080d;padding:24px 12px;font-family:Segoe UI,Roboto,Arial,sans-serif;color:#f4f2fa">' +
+    '<div style="max-width:560px;margin:0 auto">' +
+    '<div style="font-weight:800;letter-spacing:4px;font-size:15px">EDUX <span style="color:#c4b5fd;font-weight:600;letter-spacing:6px;font-size:11px">TRAINING</span></div>' +
+    '<h1 style="margin:18px 0 8px;font-size:24px">' + titulo + '</h1>' + cuerpo +
+    '<div style="color:#8a8599;font-size:11px;margin-top:22px;text-align:center">Enviado por EDUX TRAINING.</div></div></div>';
+}
+
+function cajaSiguiente_(nombre) {
+  return '<div style="margin-top:22px;border-radius:16px;padding:18px;background:linear-gradient(135deg,#b16cf9,#7c3aed 55%,#5b21b6);background-color:#7c3aed">' +
+    '<div style="font-size:11px;font-weight:800;letter-spacing:3px;opacity:.85">TE TOCA</div>' +
+    '<div style="font-size:28px;font-weight:900;text-transform:uppercase;margin-top:4px">' + esc_(nombre) + '</div></div>';
+}
+
+function htmlResumen_(r, nombre) {
   const cambio = function (a, b, fmt) {
     if (!b) return '';
     const d = a - b;
@@ -596,45 +840,275 @@ function htmlResumen(r, nombre) {
       '<div style="font-size:12px;margin-top:2px">' + (extra || '&nbsp;') + '</div></div></td>';
   };
   const a = r.act, p = r.prev;
-  let html = '<div style="background:#09080d;padding:24px 12px;font-family:Segoe UI,Roboto,Arial,sans-serif;color:#f4f2fa">' +
-    '<div style="max-width:560px;margin:0 auto">' +
-    '<div style="font-weight:800;letter-spacing:4px;font-size:15px">EDUX <span style="color:#c4b5fd;font-weight:600;letter-spacing:6px;font-size:11px">TRAINING</span></div>' +
-    '<h1 style="margin:18px 0 4px;font-size:24px">' + (nombre ? 'Buenos días, ' + nombre : 'Buenos días') + '</h1>' +
-    '<div style="color:#bdb7cc">Tu semana del ' + r.rango + '</div>';
-
+  let html = '<div style="color:#bdb7cc">Tu semana del ' + r.rango + '</div>';
   if (!a.sesiones.length) {
-    html += '<div style="margin-top:18px;background:#121018;border:1px solid #262230;border-radius:14px;padding:18px">La semana pasada no registraste entrenos. ¡Esta semana a por ello! 💪</div>';
+    html += '<div style="margin-top:18px;background:#121018;border:1px solid #262230;border-radius:14px;padding:18px">La semana pasada no registraste entrenos. ¡Esta semana a por ello!</div>';
   } else {
     html += '<table style="width:100%;border-collapse:collapse;margin-top:14px"><tr>' +
       caja(a.sesiones.length, 'Sesiones', cambio(a.sesiones.length, p.sesiones.length, function (x) { return x; })) +
       caja(a.series, 'Series', cambio(a.series, p.series, function (x) { return x; })) + '</tr><tr>' +
-      caja(volTxt(a.volumen), 'Volumen (kg × reps)', cambio(a.volumen, p.volumen, volTxt)) +
+      caja(volTxt_(a.volumen), 'Volumen (kg × reps)', cambio(a.volumen, p.volumen, volTxt_)) +
       caja(a.minutos ? Math.round(a.minutos) + ' min' : '—', 'Tiempo entrenando', a.minutos && p.minutos ? cambio(a.minutos, p.minutos, function (x) { return Math.round(x) + ' min'; }) : '') +
       '</tr></table>';
-
     html += '<h2 style="font-size:13px;letter-spacing:2px;color:#8a8599;margin:22px 0 8px">SESIONES</h2><div style="color:#bdb7cc">' +
-      a.sesiones.map(function (s) { return fechaTxt(s.fecha) + ' · <b style="color:#f4f2fa">' + s.sesion + '</b>'; }).join('<br>') + '</div>';
-
-    html += '<h2 style="font-size:13px;letter-spacing:2px;color:#8a8599;margin:22px 0 8px">🏆 RÉCORDS</h2>';
+      a.sesiones.map(function (s) { return fechaTxt_(s.fecha) + ' · <b style="color:#f4f2fa">' + esc_(s.sesion) + '</b>'; }).join('<br>') + '</div>';
+    html += '<h2 style="font-size:13px;letter-spacing:2px;color:#8a8599;margin:22px 0 8px">RÉCORDS</h2>';
     html += r.records.length
-      ? r.records.map(function (x) { return '<div style="padding:6px 0;border-top:1px solid #262230"><b>' + x.ejercicio + '</b><br><span style="color:#bdb7cc">' + fechaTxt(x.fecha) + ' · ' + x.texto + '</span></div>'; }).join('')
+      ? r.records.map(function (x) { return '<div style="padding:6px 0;border-top:1px solid #262230"><b>' + esc_(x.ejercicio) + '</b><br><span style="color:#bdb7cc">' + fechaTxt_(x.fecha) + ' · ' + x.texto + '</span></div>'; }).join('')
       : '<div style="color:#bdb7cc">Ningún récord esta semana. ¡La próxima cae!</div>';
+    const conSeries = MUSCULOS.filter(function (m) { return r.musculos[m] > 0; });
+    if (conSeries.length) {
+      const max = Math.max.apply(null, conSeries.map(function (m) { return r.musculos[m]; }));
+      html += '<h2 style="font-size:13px;letter-spacing:2px;color:#8a8599;margin:22px 0 8px">SERIES POR MÚSCULO</h2><table style="width:100%;border-collapse:collapse">';
+      conSeries.forEach(function (m) {
+        const v = r.musculos[m];
+        html += '<tr><td style="width:90px;padding:3px 8px 3px 0;color:#bdb7cc;font-size:13px">' + m + '</td>' +
+          '<td style="padding:3px 0"><div style="background:#9b6cf6;height:12px;border-radius:0 4px 4px 0;width:' + Math.max(v / max * 100, 2) + '%"></div></td>' +
+          '<td style="width:40px;text-align:right;font-size:13px;font-weight:700;color:#f4f2fa">' + numTxt_(v) + '</td></tr>';
+      });
+      html += '</table>';
+    }
+  }
+  if (r.siguiente) html += cajaSiguiente_(r.siguiente);
+  return plantillaEmail_(nombre ? 'Buenos días, ' + esc_(nombre) : 'Buenos días', html);
+}
 
-    const max = Math.max.apply(null, ORDEN_MUSCULOS.map(function (m) { return r.musculos[m]; }).concat([1]));
-    html += '<h2 style="font-size:13px;letter-spacing:2px;color:#8a8599;margin:22px 0 8px">SERIES POR MÚSCULO</h2><table style="width:100%;border-collapse:collapse">';
-    ORDEN_MUSCULOS.forEach(function (m) {
-      const v = r.musculos[m];
-      html += '<tr><td style="width:90px;padding:3px 8px 3px 0;color:#bdb7cc;font-size:13px">' + m + '</td>' +
-        '<td style="padding:3px 0"><div style="background:' + morado + ';height:12px;border-radius:0 4px 4px 0;width:' + Math.max(v / max * 100, v ? 2 : 0) + '%"></div></td>' +
-        '<td style="width:40px;text-align:right;font-size:13px;font-weight:700;color:#f4f2fa">' + numTxt(v) + '</td></tr>';
+/* ===================================================================== */
+/* 8. MIGRACIÓN DE LA HOJA ANTIGUA (formato de la v1–v7)                  */
+/* ===================================================================== */
+
+// Músculo principal, secundarios y material de los ejercicios de la rutina original
+const MIGRACION_EJERCICIOS = {
+  'Press banca': ['Pecho', 'Hombro, Tríceps', 'Barra'],
+  'Press inclinado 45º': ['Pecho', 'Hombro, Tríceps', 'Barra'],
+  'Fondos lastrados': ['Pecho', 'Tríceps', 'Peso corporal'],
+  'Contractora de pecho': ['Pecho', '', 'Máquina'],
+  'Press militar': ['Hombro', 'Tríceps', 'Barra'],
+  'Elevaciones laterales en polea': ['Hombro', '', 'Polea'],
+  'Press francés': ['Tríceps', '', 'Otro'],
+  'Extensión de tríceps en polea cruzada': ['Tríceps', '', 'Polea'],
+  'Extensión de tríceps sobre la cabeza en polea': ['Tríceps', '', 'Polea'],
+  'Remo en T': ['Espalda', 'Bíceps', 'Máquina'],
+  'Jalón al pecho, agarre neutro': ['Espalda', 'Bíceps', 'Polea'],
+  'Remo en máquina': ['Espalda', 'Bíceps', 'Máquina'],
+  'Remo en polea': ['Espalda', 'Bíceps', 'Polea'],
+  'Curl predicador': ['Bíceps', '', 'Polea'],
+  'Curl de bíceps en polea': ['Bíceps', '', 'Polea'],
+  'Curl martillo con mancuernas': ['Bíceps', 'Antebrazo', 'Mancuernas'],
+  'Sentadilla hack': ['Cuádriceps', 'Glúteo', 'Máquina'],
+  'Extensión de rodilla': ['Cuádriceps', '', 'Máquina'],
+  'Curl femoral sentado': ['Femoral', '', 'Máquina'],
+  'Curl femoral tumbado': ['Femoral', '', 'Máquina'],
+  'Peso muerto rumano': ['Femoral', 'Glúteo, Lumbar', 'Barra'],
+  'Hip thrust': ['Glúteo', '', 'Barra'],
+  'Aductora en máquina': ['Aductores', '', 'Máquina']
+};
+
+function migrarDesdeMenu() {
+  const ui = ui_();
+  const r = ui.prompt('EDUX · Migrar hoja antigua', 'Pega la URL de tu hoja antigua ("Seguimiento entreno – PPL + torso").\nNo se modifica: solo se leen sus datos.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const m = /\/d\/([a-zA-Z0-9_-]+)/.exec(r.getResponseText()) || [null, r.getResponseText().trim()];
+  const res = migrarHojaAntigua(m[1]);
+  ui.alert('Migración terminada',
+    'Copiado a tu hoja nueva:\n· ' + res.ejercicios + ' ejercicios de la rutina\n· ' + res.series + ' series\n· ' + res.sesiones +
+    ' sesiones (' + res.asistencia + ' solo de asistencia)\n· ' + res.tiempos + ' tiempos por ejercicio\n· ' + res.pesos + ' registros de peso\n\n' +
+    'Tu hoja antigua no se ha tocado. Siguiente paso: menú EDUX → 3 · Activar emails automáticos.', ui.ButtonSet.OK);
+}
+
+/**
+ * Copia la hoja antigua a la hoja nueva del administrador (o a idDestino).
+ * Se puede repetir: cada vez vacía la hoja nueva y vuelve a copiar.
+ */
+function migrarHojaAntigua(idAntigua, idDestino) {
+  const vieja = SpreadsheetApp.openById(idAntigua);
+  const admin = leerUsuarios_().filter(function (u) { return u.rol === 'admin'; })[0];
+  const destino = SpreadsheetApp.openById(idDestino || admin.hoja);
+  const tz = vieja.getSpreadsheetTimeZone();
+  prepararHojaUsuario_(destino, admin ? admin.nombre : '');
+
+  // --- Rutina: A Día · B # · C Ejercicio · D Series · E Repeticiones · F Descanso ---
+  const rutina = [];
+  filas_(vieja, 'Rutina', 6).forEach(function (f) {
+    const ej = texto_(f[2]);
+    if (!texto_(f[0]) || !ej) return;
+    const m = MIGRACION_EJERCICIOS[ej] || ['', '', 'Otro'];
+    rutina.push([texto_(f[0]), aNumero_(f[1]) || rutina.length + 1, ej, aNumero_(f[3]) || 3, texto_(f[4]), texto_(f[5]), m[0], m[1], m[2]]);
+  });
+
+  // --- Registro antiguo (datos desde la fila 3): A Fecha · C Sesión · D Ejercicio · E Serie · F Peso · G Reps · H Nota ---
+  const hReg = vieja.getSheetByName('Registro');
+  const regViejo = hReg && hReg.getLastRow() >= 3 ? hReg.getRange(3, 1, hReg.getLastRow() - 2, 8).getValues() : [];
+  const sesiones = {};
+  const idDe = function (fecha, sesion) { return 'mig-' + fecha + '-' + sesion.toLowerCase().replace(/[^a-z0-9áéíóúñü]+/g, '-'); };
+  const sesionDe = function (fecha, nombre) {
+    const id = idDe(fecha, nombre);
+    return sesiones[id] = sesiones[id] || { id: id, fecha: fecha, sesion: nombre, filas: [], duracion: '', tiempos: [] };
+  };
+  regViejo.forEach(function (f) {
+    const fecha = normalizarFecha_(f[0], tz);
+    const ej = texto_(f[3]);
+    const reps = aNumero_(f[6]);
+    if (!fecha || !ej || reps === null) return;
+    sesionDe(fecha, texto_(f[2])).filas.push([ej, aNumero_(f[4]) || 0, aNumero_(f[5]) || 0, reps, texto_(f[7])]);
+  });
+
+  // --- Tiempos antiguos: A Fecha · B Sesión · C Ejercicio · D Minutos ("Sesión completa" = duración) ---
+  filas_(vieja, 'Tiempos', 4).forEach(function (f) {
+    const fecha = normalizarFecha_(f[0], tz);
+    const min = aNumero_(f[3]);
+    if (!fecha || !texto_(f[2]) || min === null) return;
+    const s = sesionDe(fecha, texto_(f[1]));
+    if (texto_(f[2]) === 'Sesión completa') s.duracion = min; else s.tiempos.push([s.id, texto_(f[2]), min]);
+  });
+
+  const lista = Object.keys(sesiones).map(function (k) { return sesiones[k]; })
+    .sort(function (a, b) { return a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0; });
+  const filasReg = [], filasSes = [], filasTie = [];
+  let asistencia = 0;
+  lista.forEach(function (s) {
+    let vol = 0;
+    s.filas.forEach(function (f) {
+      vol += f[2] * f[3];
+      filasReg.push([s.id, fechaDe_(s.fecha), s.sesion, f[0], f[1], f[2], f[3], f[4], f[2] * f[3], rm1_(f[2], f[3])]);
     });
-    html += '</table>';
+    if (!s.filas.length) asistencia++;
+    filasSes.push([s.id, fechaDe_(s.fecha), s.sesion, '', s.duracion === '' ? '' : s.duracion, s.filas.length, vol,
+      s.filas.length ? 'Migrada' : 'Solo asistencia', '']);
+    s.tiempos.forEach(function (t) { filasTie.push(t); });
+  });
+
+  // --- Perfil: A Dato · B Valor + D Fecha · E Peso ---
+  const hPerf = vieja.getSheetByName('Perfil');
+  const perfilViejo = hPerf ? hPerf.getRange(1, 1, Math.max(hPerf.getLastRow(), 4), 5).getValues() : [];
+  const datoViejo = function (etiqueta) {
+    for (let i = 0; i < perfilViejo.length; i++) if (texto_(perfilViejo[i][0]) === etiqueta) return perfilViejo[i][1];
+    return '';
+  };
+  const pesos = [];
+  for (let i = 1; i < perfilViejo.length; i++) {
+    const f = normalizarFecha_(perfilViejo[i][3], tz);
+    const p = aNumero_(perfilViejo[i][4]);
+    if (f && p !== null) pesos.push([fechaDe_(f), p]);
   }
 
-  html += '<div style="margin-top:22px;border-radius:16px;padding:18px;background:linear-gradient(135deg,#b16cf9,#7c3aed 55%,#5b21b6);background-color:#7c3aed">' +
-    '<div style="font-size:11px;font-weight:800;letter-spacing:3px;opacity:.85">SIGUIENTE ENTRENO</div>' +
-    '<div style="font-size:28px;font-weight:900;text-transform:uppercase;margin-top:4px">' + r.siguiente + '</div></div>' +
-    '<div style="color:#8a8599;font-size:11px;margin-top:18px;text-align:center">Enviado por el script de tu hoja de seguimiento.</div>' +
-    '</div></div>';
-  return html;
+  // --- Escribir en la hoja nueva (vaciándola antes: la migración se puede repetir) ---
+  const vaciarYEscribir = function (nombre, filas, colFecha) {
+    const h = destino.getSheetByName(nombre);
+    if (h.getMaxRows() > 1) h.getRange(2, 1, h.getMaxRows() - 1, CABECERAS[nombre].length).clearContent();
+    agregarFilas_(h, filas, colFecha);
+  };
+  vaciarYEscribir('Rutina', rutina);
+  vaciarYEscribir('Registro', filasReg, 2);
+  vaciarYEscribir('Sesiones', filasSes, 2);
+  vaciarYEscribir('Tiempos', filasTie);
+
+  const hNueva = destino.getSheetByName('Perfil');
+  const nac = normalizarFecha_(datoViejo('Fecha de nacimiento'), tz);
+  guardarPerfil_(destino, {
+    nombre: texto_(datoViejo('Nombre')) || (admin ? admin.nombre : ''),
+    nacimiento: nac || '', altura: aNumero_(datoViejo('Altura (cm)')) || ''
+  });
+  if (hNueva.getMaxRows() > 1) hNueva.getRange(2, 4, hNueva.getMaxRows() - 1, 2).clearContent();
+  if (pesos.length) {
+    hNueva.getRange(2, 4, pesos.length, 2).setValues(pesos);
+    hNueva.getRange(2, 4, pesos.length, 1).setNumberFormat('dd/mm/yyyy');
+  }
+
+  actualizarProgreso_(destino);
+  if (admin && lista.length) {
+    pestanaUsuarios_().getRange(admin.fila, COL.ultimo).setValue(fechaDe_(lista[lista.length - 1].fecha)).setNumberFormat('dd/mm/yyyy');
+  }
+  SpreadsheetApp.flush();
+  return { ejercicios: rutina.length, series: filasReg.length, sesiones: filasSes.length, asistencia: asistencia, tiempos: filasTie.length, pesos: pesos.length };
 }
+
+/* ===================================================================== */
+/* 9. UTILIDADES                                                          */
+/* ===================================================================== */
+
+function texto_(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+
+function esc_(t) {
+  return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
+
+/** Número de la celda (acepta "62,5"), o null si está vacía o no es un número */
+function aNumero_(v) {
+  if (typeof v === 'number') return v;
+  const t = texto_(v).replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
+
+function quitarTildes_(t) {
+  return t.toLowerCase().replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e').replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o').replace(/[úùü]/g, 'u');
+}
+
+function musculoValido_(v) {
+  const t = quitarTildes_(texto_(v));
+  if (!t) return '';
+  for (let i = 0; i < MUSCULOS.length; i++) if (quitarTildes_(MUSCULOS[i]) === t) return MUSCULOS[i];
+  return '';
+}
+
+/** "3,5 min" → 210 · "90 s" → 90 · "1:30" → 90 · 3 → 180 (números pequeños = minutos) */
+function segundosDescanso_(v) {
+  if (typeof v === 'number') return Math.round(v <= 15 ? v * 60 : v);
+  const t = texto_(v).toLowerCase().replace(',', '.');
+  if (!t) return 120;
+  let m = /^(\d+):(\d{1,2})/.exec(t);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  m = /^(\d+(?:\.\d+)?)\s*(s|seg|segundos?)\b/.exec(t);
+  if (m) return Math.round(Number(m[1]));
+  m = /^(\d+(?:\.\d+)?)/.exec(t);
+  if (m) return Math.round(Number(m[1]) <= 15 ? Number(m[1]) * 60 : Number(m[1]));
+  return 120;
+}
+
+/** 210 → "3,5 min" */
+function textoDescanso_(seg) {
+  return String(Math.round((seg / 60) * 100) / 100).replace('.', ',') + ' min';
+}
+
+function rm1_(peso, reps) { return Math.round(peso * (1 + reps / 30) * 10) / 10; }
+
+function md5_(t) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, t, Utilities.Charset.UTF_8)
+    .map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
+}
+
+/** "2026-11-03" → Date a las 12:00 (las 12:00 evitan saltos de día por zona horaria) */
+function parsearFecha_(texto) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(texto || ''));
+  if (!m) throw new Error('Fecha no válida: ' + texto);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+}
+function fechaDe_(iso) { return parsearFecha_(iso); }
+
+/** Fecha de una celda (Date o texto "dd/mm/aaaa") → "yyyy-MM-dd", o null */
+function normalizarFecha_(v, tz) {
+  if (v instanceof Date && !isNaN(v.getTime())) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  const t = texto_(v);
+  let m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t);
+  if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  return m ? t : null;
+}
+
+function isoDe_(v) {
+  if (!v) return '';
+  return normalizarFecha_(v, Session.getScriptTimeZone()) || '';
+}
+
+/* --- fechas "yyyy-MM-dd" sin líos de zona horaria (aritmética en UTC) --- */
+function isoAUtc_(iso) { const p = iso.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
+function utcAIso_(d) { return d.toISOString().slice(0, 10); }
+function sumarDias_(iso, n) { const d = isoAUtc_(iso); d.setUTCDate(d.getUTCDate() + n); return utcAIso_(d); }
+function lunesDe_(iso) { const d = isoAUtc_(iso); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return utcAIso_(d); }
+function diasEntre_(a, b) { return Math.round((isoAUtc_(b) - isoAUtc_(a)) / 86400000); }
+const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fechaTxt_(iso) { const d = isoAUtc_(iso); return d.getUTCDate() + ' ' + MESES_C[d.getUTCMonth()]; }
+function numTxt_(n, dec) { const f = Math.pow(10, dec === undefined ? 1 : dec); return String(Math.round(n * f) / f).replace('.', ','); }
+function volTxt_(kg) { return kg >= 1000 ? numTxt_(kg / 1000, 1) + ' t' : numTxt_(kg, 0) + ' kg'; }

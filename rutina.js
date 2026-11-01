@@ -1,273 +1,83 @@
-// Rutina copiada de la pestaña "Rutina" de la hoja "Seguimiento entreno – PPL + torso".
-// Los nombres deben coincidir EXACTAMENTE con los de la hoja (listas desplegables y pestaña Progreso).
-// objetivos: rango de repeticiones de cada serie (una entrada por serie).
-const RUTINA = {
-  "Empuje": [
-    {
-      "nombre": "Press banca",
-      "series": 3,
-      "objetivos": [
-        "6–8",
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3,5 min"
-    },
-    {
-      "nombre": "Press militar",
-      "series": 3,
-      "objetivos": [
-        "6–8",
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3 min"
-    },
-    {
-      "nombre": "Fondos lastrados",
-      "series": 2,
-      "objetivos": [
-        "6–10",
-        "6–10"
-      ],
-      "descanso": "3 min"
-    },
-    {
-      "nombre": "Contractora de pecho",
-      "series": 3,
-      "objetivos": [
-        "10–15",
-        "10–15",
-        "10–15"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Press francés",
-      "series": 2,
-      "objetivos": [
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Extensión de tríceps en polea cruzada",
-      "series": 2,
-      "objetivos": [
-        "10–15",
-        "10–15"
-      ],
-      "descanso": "1,5 min"
-    }
-  ],
-  "Tirón": [
-    {
-      "nombre": "Remo en T",
-      "series": 3,
-      "objetivos": [
-        "6–8",
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3 min"
-    },
-    {
-      "nombre": "Jalón al pecho, agarre neutro",
-      "series": 3,
-      "objetivos": [
-        "8–12",
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2,5 min"
-    },
-    {
-      "nombre": "Remo en máquina",
-      "series": 3,
-      "objetivos": [
-        "10–14",
-        "10–14",
-        "10–14"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Curl predicador",
-      "series": 3,
-      "objetivos": [
-        "8–12",
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Curl de bíceps en polea",
-      "series": 2,
-      "objetivos": [
-        "12–20",
-        "12–20"
-      ],
-      "descanso": "1,5 min"
-    }
-  ],
-  "Pierna": [
-    {
-      "nombre": "Sentadilla hack",
-      "series": 3,
-      "objetivos": [
-        "6–8",
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3,5 min"
-    },
-    {
-      "nombre": "Aductora en máquina",
-      "series": 2,
-      "objetivos": [
-        "10–15",
-        "10–15"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Curl femoral sentado",
-      "series": 3,
-      "objetivos": [
-        "8–12",
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Peso muerto rumano",
-      "series": 3,
-      "objetivos": [
-        "6–8",
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3,5 min"
-    },
-    {
-      "nombre": "Hip thrust",
-      "series": 2,
-      "objetivos": [
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2,5 min"
-    }
-  ],
-  "Fullbody": [
-    {
-      "nombre": "Extensión de rodilla",
-      "series": 3,
-      "objetivos": [
-        "10–15",
-        "10–15",
-        "10–15"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Curl femoral tumbado",
-      "series": 2,
-      "objetivos": [
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Press inclinado 45º",
-      "series": 2,
-      "objetivos": [
-        "8–10",
-        "8–10"
-      ],
-      "descanso": "3 min"
-    },
-    {
-      "nombre": "Remo en polea",
-      "series": 3,
-      "objetivos": [
-        "8–12",
-        "8–12",
-        "8–12"
-      ],
-      "descanso": "2,5 min"
-    },
-    {
-      "nombre": "Elevaciones laterales en polea",
-      "series": 3,
-      "objetivos": [
-        "12–15",
-        "12–15",
-        "12–15"
-      ],
-      "descanso": "1,5 min"
-    },
-    {
-      "nombre": "Curl martillo con mancuernas",
-      "series": 2,
-      "objetivos": [
-        "10–14",
-        "10–14"
-      ],
-      "descanso": "2 min"
-    },
-    {
-      "nombre": "Extensión de tríceps sobre la cabeza en polea",
-      "series": 2,
-      "objetivos": [
-        "10–15",
-        "10–15"
-      ],
-      "descanso": "2 min"
-    }
-  ]
-};
+'use strict';
 
-// Orden de la rotación (para proponer el "siguiente entreno").
-const ORDEN_SESIONES = ['Empuje', 'Tirón', 'Pierna', 'Fullbody'];
+/* =====================================================================
+ * La rutina de cada usuario se lee de SU hoja (pestaña Rutina) y llega con
+ * los datos (cache.rutina). Aquí se convierte en las estructuras que usa la app:
+ *   RUTINA[sesión]    → [{ nombre, series, objetivos[], descanso (s), principal, secundarios[], material }]
+ *   ORDEN_SESIONES    → sesiones en el orden de la hoja (rotación)
+ *   INFO_SESION[ses]  → { letra, grupos }
+ *   MUSCULOS[ej]      → [principal, ...secundarios]
+ *   ORDEN_EJ / DEF_EJERCICIO → orden global y definición de cada ejercicio
+ * Se rellenan EN SITIO (los demás archivos guardan referencias a estos objetos).
+ * ===================================================================== */
 
-// Datos de presentación de cada sesión.
-const INFO_SESION = {
-  'Empuje':   { letra: 'E', grupos: 'Pecho · Hombro · Tríceps' },
-  'Tirón':    { letra: 'T', grupos: 'Espalda · Bíceps' },
-  'Pierna':   { letra: 'P', grupos: 'Cuádriceps · Femoral · Glúteo' },
-  'Fullbody': { letra: 'F', grupos: 'Cuerpo completo' }
-};
+// Los grupos musculares de la app (mismo orden que en el script de la hoja)
+const ORDEN_MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Antebrazo', 'Abdomen', 'Lumbar',
+  'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores', 'Gemelos'];
 
-// Músculos de cada ejercicio: el primero es el principal (cuenta 1 serie),
-// los demás son secundarios (cuentan ½). Igual que en apps-script/Code.gs.
-const MUSCULOS = {
-  'Press banca': ['Pecho', 'Hombro', 'Tríceps'],
-  'Press inclinado 45º': ['Pecho', 'Hombro', 'Tríceps'],
-  'Fondos lastrados': ['Pecho', 'Tríceps'],
-  'Contractora de pecho': ['Pecho'],
-  'Press militar': ['Hombro', 'Tríceps'],
-  'Elevaciones laterales en polea': ['Hombro'],
-  'Press francés': ['Tríceps'],
-  'Extensión de tríceps en polea cruzada': ['Tríceps'],
-  'Extensión de tríceps sobre la cabeza en polea': ['Tríceps'],
-  'Remo en T': ['Espalda', 'Bíceps'],
-  'Jalón al pecho, agarre neutro': ['Espalda', 'Bíceps'],
-  'Remo en máquina': ['Espalda', 'Bíceps'],
-  'Remo en polea': ['Espalda', 'Bíceps'],
-  'Curl predicador': ['Bíceps'],
-  'Curl de bíceps en polea': ['Bíceps'],
-  'Curl martillo con mancuernas': ['Bíceps'],
-  'Sentadilla hack': ['Cuádriceps', 'Glúteo'],
-  'Extensión de rodilla': ['Cuádriceps'],
-  'Curl femoral sentado': ['Femoral'],
-  'Curl femoral tumbado': ['Femoral'],
-  'Peso muerto rumano': ['Femoral', 'Glúteo'],
-  'Hip thrust': ['Glúteo'],
-  'Aductora en máquina': ['Aductores']
-};
-const ORDEN_MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores'];
+const RUTINA = {};
+const ORDEN_SESIONES = [];
+const INFO_SESION = {};
+const MUSCULOS = {};
+const ORDEN_EJ = new Map();
+const DEF_EJERCICIO = new Map();
+
+/** Primera letra libre del nombre (Empuje → E; si ya está, la siguiente letra del nombre) */
+function letraSesion(nombre, usadas) {
+  const candidatas = (nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().match(/[A-Z0-9]/g) || []);
+  for (const l of candidatas) if (!usadas.has(l)) return l;
+  for (let i = 1; i < 100; i++) if (!usadas.has(String(i))) return String(i);
+  return '•';
+}
+
+/** Grupos de una sesión: los músculos principales por orden de aparición (más de 4 → cuerpo completo) */
+function gruposSesion(ejercicios) {
+  const grupos = [];
+  for (const e of ejercicios) if (e.principal && !grupos.includes(e.principal)) grupos.push(e.principal);
+  if (!grupos.length) return 'Sin músculos asignados';
+  return grupos.length > 4 ? 'Cuerpo completo' : grupos.join(' · ');
+}
+
+/** Rehace las estructuras a partir de la rutina descargada de la hoja */
+function cargarRutina(filas) {
+  for (const k of Object.keys(RUTINA)) delete RUTINA[k];
+  for (const k of Object.keys(INFO_SESION)) delete INFO_SESION[k];
+  for (const k of Object.keys(MUSCULOS)) delete MUSCULOS[k];
+  ORDEN_SESIONES.length = 0;
+  ORDEN_EJ.clear();
+  DEF_EJERCICIO.clear();
+
+  for (const f of filas || []) {
+    if (!f || !f.sesion || !f.ejercicio) continue;
+    if (!RUTINA[f.sesion]) { RUTINA[f.sesion] = []; ORDEN_SESIONES.push(f.sesion); }
+    // Un ejercicio repetido dentro de la misma sesión se ignora (la sesión los identifica por nombre)
+    if (RUTINA[f.sesion].some((e) => e.nombre === f.ejercicio)) continue;
+    const series = Math.max(1, Math.min(10, Number(f.series) || 3));
+    const objetivos = Array.isArray(f.objetivos) && f.objetivos.length ? f.objetivos.map(String) : ['8–12'];
+    const ej = {
+      nombre: f.ejercicio, series, objetivos,
+      descanso: Number(f.descanso) > 0 ? Number(f.descanso) : 120,
+      principal: f.principal || '', secundarios: Array.isArray(f.secundarios) ? f.secundarios : [],
+      material: f.material || 'Otro'
+    };
+    RUTINA[f.sesion].push(ej);
+    if (!DEF_EJERCICIO.has(ej.nombre)) {
+      DEF_EJERCICIO.set(ej.nombre, ej);
+      ORDEN_EJ.set(ej.nombre, ORDEN_EJ.size);
+      MUSCULOS[ej.nombre] = [ej.principal, ...ej.secundarios].filter(Boolean);
+    }
+  }
+  const usadas = new Set();
+  for (const s of ORDEN_SESIONES) {
+    const letra = letraSesion(s, usadas);
+    usadas.add(letra);
+    INFO_SESION[s] = { letra, grupos: gruposSesion(RUTINA[s]) };
+  }
+}
+
+/** Datos de presentación de una sesión (también de sesiones antiguas que ya no están en la rutina) */
+function infoSesion(nombre) {
+  return INFO_SESION[nombre] || { letra: '•', grupos: '' };
+}
+
+function hayRutina() { return ORDEN_SESIONES.length > 0; }

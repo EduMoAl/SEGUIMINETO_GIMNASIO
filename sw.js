@@ -1,7 +1,7 @@
 // Service worker: guarda la app en el móvil para que funcione sin internet.
 // IMPORTANTE: cada vez que cambies algún archivo de la app, sube el número de VERSION
 // para que el móvil descargue la nueva versión.
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = 'edux-' + VERSION;
 const ARCHIVOS = [
   './',
@@ -17,6 +17,8 @@ const ARCHIVOS = [
   'descanso.js',
   'sesion.js',
   'vistas.js',
+  'lib/qrcode.js',
+  'usuarios.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon-192.png',

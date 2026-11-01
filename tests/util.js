@@ -31,13 +31,38 @@ async function nuevaPagina(navegador) {
   return { ctx, page, errores };
 }
 
-/** Configura la conexión desde Ajustes y espera a que se descarguen los datos de la hoja */
-async function conectar(page, E) {
-  await page.click('[data-tab=ajustes]');
-  await page.fill('#cfg-url', E.script);
-  await page.fill('#cfg-clave', E.clave);
-  await page.click('[data-accion=probar]');
-  await page.waitForFunction(() => (JSON.parse(localStorage.getItem('gym.cache') || '{}').filas || []).length > 0);
+/** Enlace de conexión de una cuenta (el mismo formato que genera el script, pero apuntando a la app de pruebas) */
+function enlaceConexion(E, clave = E.clave) {
+  return E.app + '#conectar=' + Buffer.from(JSON.stringify({ u: E.script, c: clave })).toString('base64url');
 }
 
-module.exports = { HOY, AHORA, FalloPrueba, crearOk, nuevaPagina, conectar };
+/** Abre el enlace de conexión y espera a que se descarguen los datos de la hoja */
+async function conectar(page, E, clave = E.clave) {
+  await page.goto(enlaceConexion(E, clave));
+  await page.waitForFunction(() => {
+    const c = JSON.parse(localStorage.getItem('gym.cache') || '{}');
+    return c.formato === 2 && Array.isArray(c.sesiones) && (c.rutina || []).length >= 0 && c.actualizado;
+  });
+  await page.waitForTimeout(150);
+}
+
+/** Espera (en Node) hasta que se cumpla una condición */
+async function esperar(cond, ms = 10000) {
+  const fin = Date.now() + ms;
+  while (!(await cond())) {
+    if (Date.now() > fin) throw new FalloPrueba('tiempo de espera agotado');
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/** Lo que la app tiene en su copia local */
+async function cacheApp(page) {
+  return page.evaluate(() => JSON.parse(localStorage.getItem('gym.cache') || 'null'));
+}
+
+/** Número de series en la copia local */
+async function seriesEnCache(page) {
+  return page.evaluate(() => (JSON.parse(localStorage.getItem('gym.cache') || '{}').sesiones || []).reduce((a, s) => a + s.filas.length, 0));
+}
+
+module.exports = { HOY, AHORA, FalloPrueba, crearOk, nuevaPagina, conectar, enlaceConexion, cacheApp, seriesEnCache, esperar };

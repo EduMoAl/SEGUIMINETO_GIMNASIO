@@ -4,7 +4,6 @@ module.exports = async function (E) {
   const { ctx, page, errores } = await E.nuevaPagina(E.navegador);
   const actual = () => page.evaluate(() => JSON.parse(localStorage.getItem('gym.actual') || 'null'));
   const pendientes = () => page.evaluate(() => JSON.parse(localStorage.getItem('gym.pendientes') || '[]').length);
-  await page.goto(E.app);
   await E.conectar(page, E);
   await page.click('[data-tab=inicio]');
 

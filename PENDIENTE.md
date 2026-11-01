@@ -19,13 +19,15 @@
 - [x] 5. Indicador "Sin conexión" y sesiones pendientes.
 
 ### Fase B — Multiusuario
-- [ ] Hoja nueva (la crea el script): Rutina (con músculos y material), Registro (con ID de sesión), Sesiones, Tiempos, Perfil (con email y recordatorio), Progreso con fórmulas.
-- [ ] Hoja de Administración (usuarios, claves, hoja de cada uno).
-- [ ] Script central: alta de usuarios, datos por clave, emails semanales y recordatorios para todos.
-- [ ] App: rutina leída de la hoja, sesiones dinámicas, conexión por enlace/QR, panel de usuarios.
-- [ ] 4. Descarga incremental (huella por sesión).
-- [ ] 19. Recordatorio por email tras 7 días sin entrenar.
-- [ ] Migración de los datos de Edu y desactivar el script antiguo.
+- [x] Hoja nueva por usuario (la crea el script): Rutina (con músculos y material), Registro (con ID de sesión), Sesiones, Tiempos, Perfil (con recordatorio), Progreso (lo rehace el script).
+- [x] Hoja de Administración (usuarios, claves, hoja de cada uno).
+- [x] Script central: alta de usuarios, datos por clave, emails semanales y recordatorios para todos.
+- [x] App: rutina leída de la hoja, sesiones dinámicas, conexión por enlace/QR, panel de usuarios.
+- [x] 4. Descarga incremental (huella por sesión).
+- [x] 19. Recordatorio por email tras 7 días sin entrenar.
+- [x] Migración probada en local con los datos reales (169 series, 185 sesiones).
+- [ ] Instalación en el Drive de Edu, migración y desactivar el script antiguo.
+- [ ] Publicar la v8 en `main` (solo después de la migración).
 
 ### Fase C — Entrenamiento
 - [ ] 8. Detector de estancamiento (3 sesiones sin mejorar la mejor marca).

@@ -3,18 +3,15 @@
 /* =====================================================================
  * EDUX TRAINING — base de la interfaz: navegación, Inicio, eventos y arranque.
  *   Pestañas: inicio · historial · progreso · perfil · ajustes
- *   Pantallas: sesion · resumen (sesion.js) · records (vistas.js)
+ *   Pantallas: sesion · resumen (sesion.js) · records (vistas.js) · usuarios (usuarios.js)
  * ===================================================================== */
 
-const VERSION_APP = 'v7';
+const VERSION_APP = 'v8';
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
 
 let vistaActual = 'inicio';
 const TABS = ['inicio', 'historial', 'progreso', 'perfil', 'ajustes'];
 let relojIntervalo = null;
-
-// Orden global de los ejercicios (para ordenar listas)
-const ORDEN_EJ = ORDEN_EJ_DATOS;
 
 /* ===================== Utilidades de interfaz ===================== */
 
@@ -139,7 +136,7 @@ const BTN_REFRESCAR = `<button class="icono" data-accion="actualizar" aria-label
 const VISTAS = {
   inicio: () => vistaInicio(), historial: () => vistaHistorial(), progreso: () => vistaProgreso(),
   perfil: () => vistaPerfil(), ajustes: () => vistaAjustes(), records: () => vistaRecords(),
-  sesion: () => vistaSesion(), resumen: () => vistaResumen()
+  sesion: () => vistaSesion(), resumen: () => vistaResumen(), usuarios: () => vistaUsuarios()
 };
 
 function navegar(vista) {
@@ -160,7 +157,7 @@ function render(vista) {
   $('#nav').hidden = enSesion;
   $('#dock').hidden = vista !== 'sesion';
   $('#progreso-sesion').hidden = vista !== 'sesion';
-  const tabActiva = vista === 'records' ? 'perfil' : vista;
+  const tabActiva = vista === 'records' ? 'perfil' : vista === 'usuarios' ? 'ajustes' : vista;
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('activo', b.dataset.tab === tabActiva));
   if (vista === 'sesion') Pantalla.activar(); else Pantalla.desactivar();
   clearInterval(relojIntervalo);
@@ -187,7 +184,7 @@ function alCambiarDatos() {
 /* ===================== Vista: Inicio ===================== */
 
 function minutosEstimados(nombre) {
-  const seg = RUTINA[nombre].reduce((a, ej) => a + ej.series * (descansoDe(ej.nombre) + 40), 0);
+  const seg = (RUTINA[nombre] || []).reduce((a, ej) => a + ej.series * (descansoDe(ej.nombre) + 40), 0);
   return Math.round(seg / 60 / 5) * 5;
 }
 
@@ -207,11 +204,20 @@ function vistaInicio() {
   let html = `<div class="saludo"><p>${esc(fecha)}</p><h2>${saludo}${nombre ? `, <em>${esc(nombre)}</em>` : ''}</h2></div>`;
 
   if (!configCompleta()) {
-    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>Falta conectar la app con tu hoja. <button class="enlace" data-tab="ajustes">Ir a Ajustes</button></div></div>`;
+    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>${configAntigua()
+      ? 'La app ha cambiado a cuentas de usuario. <b>Abre el enlace de conexión</b> que te llegó por email para seguir.'
+      : 'Falta conectar la app con tu cuenta. Abre el <b>enlace de conexión</b> que te envió el administrador.'}
+      <button class="enlace" data-tab="ajustes">Ajustes</button></div></div>`;
   }
 
   // Tarjeta principal: sesión en curso o siguiente entreno, con el mapa muscular
   const nombreHero = actual ? actual.sesion : sig;
+  if (!nombreHero) {
+    html += htmlSinRutina(idx);
+    html += htmlPendientes(pendientes);
+    $('#vista').innerHTML = html;
+    return;
+  }
   let datosHero, botones;
   if (actual) {
     const { hechas, total } = progresoSesion(actual);
@@ -219,7 +225,7 @@ function vistaInicio() {
     botones = `<button class="btn blanco" data-accion="continuar">${ico('play', 'relleno')}Continuar</button>
                <button class="btn fantasma" data-accion="descartar">Descartar</button>`;
   } else {
-    const ejs = RUTINA[sig];
+    const ejs = RUTINA[sig] || [];
     datosHero = `<div><b>${ejs.length}</b>ejercicios</div><div><b>${ejs.reduce((a, e) => a + e.series, 0)}</b>series</div><div><b>${minutosEstimados(sig)}′</b>aprox.</div>`;
     botones = `<button class="btn blanco ancho" data-accion="empezar" data-sesion="${esc(sig)}">${ico('play', 'relleno')}Empezar entreno</button>`;
   }
@@ -229,7 +235,7 @@ function vistaInicio() {
       <div class="hero-nombre">${esc(nombreHero)}</div>
       <div class="hero-cuerpo">
         <div>
-          <div class="hero-grupos">${esc(INFO_SESION[nombreHero].grupos).replace(/ · /g, '<br>')}</div>
+          <div class="hero-grupos">${esc(infoSesion(nombreHero).grupos).replace(/ · /g, '<br>')}</div>
           <div class="hero-datos">${datosHero}</div>
         </div>
         ${cuerpoSVG(intensidadSesion(nombreHero), { etiquetas: false })}
@@ -237,16 +243,7 @@ function vistaInicio() {
       <div class="fila-botones">${botones}</div>
     </section>`;
 
-  // Pendientes
-  if (pendientes.length) {
-    html += `<div class="tarjeta atencion" style="margin-top:12px"><div class="pendientes-cab">${ico('subir')}Pendientes de enviar (${pendientes.length})</div><ul class="lista-pendientes">`;
-    for (const p of pendientes) {
-      const n = p.ejercicios.reduce((a, e) => a + e.series.length, 0);
-      html += `<li><span>${esc(fechaMedia(p.fecha))} · ${esc(p.sesion)} · ${n} series</span>
-        <button class="icono plano" data-accion="borrar-pendiente" data-id="${esc(p.id)}" aria-label="Descartar">${ico('x')}</button></li>`;
-    }
-    html += `</ul><button class="btn primario ancho" style="margin-top:10px" data-accion="enviar">${ico('subir')}Enviar ahora</button></div>`;
-  }
+  html += htmlPendientes(pendientes);
 
   // Tu semana
   const lunes = lunesDe(new Date());
@@ -288,7 +285,7 @@ function vistaInicio() {
         ${cuerpoSVG(intensidadSesion(nombreSes), { etiquetas: false })}
         <span>
           <span class="nombre">${esc(nombreSes)}${esSig ? '<span class="etiqueta-sig">TOCA</span>' : ''}</span>
-          <span class="grupos">${esc(INFO_SESION[nombreSes].grupos)}</span>
+          <span class="grupos">${esc(infoSesion(nombreSes).grupos)}</span>
           <span class="pie">${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series, 0)} series</span>
         </span>
         <span class="lado">${u ? esc(haceDias(u)) : 'Sin registros'}${ico('sig')}</span>
@@ -304,6 +301,55 @@ function vistaInicio() {
   $('#vista').innerHTML = html;
 }
 
+/** Sesiones terminadas que aún no han llegado a la hoja */
+function htmlPendientes(pendientes) {
+  if (!pendientes.length) return '';
+  let html = `<div class="tarjeta atencion" style="margin-top:12px"><div class="pendientes-cab">${ico('subir')}Pendientes de enviar (${pendientes.length})</div><ul class="lista-pendientes">`;
+  for (const p of pendientes) {
+    const n = p.ejercicios.reduce((a, e) => a + e.series.length, 0);
+    html += `<li><span>${esc(fechaMedia(p.fecha))} · ${esc(p.sesion)} · ${n} series</span>
+      <button class="icono plano" data-accion="borrar-pendiente" data-id="${esc(p.id)}" aria-label="Descartar">${ico('x')}</button></li>`;
+  }
+  return html + `</ul><button class="btn primario ancho" style="margin-top:10px" data-accion="enviar">${ico('subir')}Enviar ahora</button></div>`;
+}
+
+/** Inicio cuando la hoja aún no tiene rutina (o no hay conexión) */
+function htmlSinRutina(idx) {
+  const cache = leerCache();
+  let texto;
+  if (!configCompleta()) texto = 'Cuando conectes la app con tu cuenta, aquí aparecerá tu rutina.';
+  else if (!idx.actualizado) texto = actualizando ? 'Descargando tus datos…' : 'Aún no se han descargado tus datos. Comprueba la conexión y pulsa actualizar.';
+  else if (cache.admin) texto = 'Rellena la pestaña <b>Rutina</b> de tu hoja (una fila por ejercicio) y pulsa actualizar.';
+  else texto = 'Tu rutina aún no está lista. Pídele al administrador que la añada a tu hoja.';
+  return `<section class="hero hero-vacio">
+      <div class="hero-etiqueta">TU RUTINA</div>
+      <div class="hero-nombre">Sin rutina</div>
+      <p class="hero-texto">${texto}</p>
+      ${configCompleta() ? `<div class="fila-botones"><button class="btn blanco ancho" data-accion="actualizar">${ico('refrescar')}Actualizar</button></div>` : ''}
+    </section>`;
+}
+
+/* ===================== Enlace de conexión ===================== */
+
+/** Si la app se abre con …#conectar=…, se conecta a esa cuenta */
+async function abrirEnlaceConexion() {
+  const datos = leerEnlaceConexion(location.hash);
+  if (!/conectar=/.test(location.hash)) return;
+  // El enlace lleva la clave: se quita de la barra de direcciones
+  history.replaceState(history.state, '', location.pathname + location.search);
+  if (!datos) return aviso('El enlace de conexión está incompleto. Ábrelo de nuevo desde el email.', 'error', 8);
+  const previa = leer(K.config, {});
+  if (previa.v2 && previa.clave === datos.clave && previa.url === datos.url) {
+    aviso(`Ya estabas conectado${previa.nombre ? ' como ' + previa.nombre : ''}`, 'ok', 4);
+    return;
+  }
+  const pendientes = leer(K.pendientes, []).length;
+  if (previa.v2 && previa.clave && previa.clave !== datos.clave && pendientes &&
+      !confirm(`Tienes ${pendientes} ${pendientes === 1 ? 'sesión' : 'sesiones'} sin enviar. Si cambias de cuenta se enviarán a la cuenta nueva. ¿Cambiar de cuenta?`)) return;
+  await conectarCuenta(datos);
+  if (TABS.includes(vistaActual)) repintar();
+}
+
 /* ===================== Eventos ===================== */
 
 document.addEventListener('click', async (e) => {
@@ -317,6 +363,7 @@ document.addEventListener('click', async (e) => {
   // Acciones de cada pantalla (sesion.js y vistas.js)
   if (await accionSesion(accion, b)) return;
   if (await accionVistas(accion, b)) return;
+  if (await accionUsuarios(accion, b)) return;
 
   switch (accion) {
     case 'atras': history.back(); break;
@@ -338,8 +385,10 @@ document.addEventListener('click', async (e) => {
     }
     case 'actualizar-app': actualizarApp(); break;
     case 'actualizar':
-    case 'actualizar-forzado':
       await actualizarDatos({ silencioso: false });
+      break;
+    case 'actualizar-forzado':
+      await actualizarDatos({ silencioso: false, completo: true });
       break;
   }
 });
@@ -357,6 +406,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('popstate', (e) => render((e.state && e.state.vista) || 'inicio'));
+window.addEventListener('hashchange', () => { if (/conectar=/.test(location.hash)) abrirEnlaceConexion(); });
 
 window.addEventListener('online', async () => {
   actualizarEstadoRed();
@@ -377,7 +427,7 @@ window.addEventListener('resize', () => {
 // Al volver a la app tras un rato, refrescar datos de la hoja
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  const cache = leer(K.cache, {});
+  const cache = leerCache();
   if (!cache.actualizado || Date.now() - new Date(cache.actualizado).getTime() > 10 * 60000) actualizarDatos();
 });
 
@@ -386,6 +436,7 @@ document.addEventListener('visibilitychange', () => {
 vigilarActualizaciones();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
+cargarRutina(leerCache().rutina);
 Descanso.restaurar();
 history.replaceState({ vista: 'inicio' }, '');
 if (leer(K.actual, null)) {
@@ -396,6 +447,7 @@ if (leer(K.actual, null)) {
   render('inicio');
 }
 (async () => {
+  if (/conectar=/.test(location.hash)) return abrirEnlaceConexion();
   const n = await enviarPendientes({ silencioso: true });
   if (!n) actualizarDatos();
   actualizarEstadoRed();

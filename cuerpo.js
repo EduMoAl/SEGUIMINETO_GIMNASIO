@@ -23,7 +23,12 @@ const GRUPO_DE_MUSCULO = {
   quadriceps: 'Cuádriceps',
   hamstring: 'Femoral',
   gluteal: 'Glúteo',
-  adductors: 'Aductores'
+  adductors: 'Aductores',
+  abs: 'Abdomen',
+  obliques: 'Abdomen',
+  calves: 'Gemelos',
+  forearm: 'Antebrazo',
+  'lower-back': 'Lumbar'
 };
 // Partes que no son músculo: se pintan como la silueta
 const SIN_COLOR = new Set(['hair', 'head', 'hands', 'feet', 'ankles', 'knees']);
@@ -66,7 +71,7 @@ function cuerpoSVG(intensidad = {}, { etiquetas = true, clase = '' } = {}) {
 /** Intensidad de una sesión: músculo principal = 1, secundario = 0,5 */
 function intensidadSesion(nombreSesion) {
   const out = {};
-  for (const ej of RUTINA[nombreSesion]) {
+  for (const ej of RUTINA[nombreSesion] || []) {
     (MUSCULOS[ej.nombre] || []).forEach((m, i) => { out[m] = Math.max(out[m] || 0, i === 0 ? 1 : 0.5); });
   }
   return out;

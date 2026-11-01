@@ -3,7 +3,6 @@
 module.exports = async function (E) {
   E.semilla.sembrarAsistencia(E.sim, [['2026-03-10', 'Empuje', 62], ['2026-03-12', 'espalda', 55], ['2026-03-14', 'Pierna', 0]]);
   const { ctx, page, errores } = await E.nuevaPagina(E.navegador);
-  await page.goto(E.app);
   await E.conectar(page, E);
 
   await page.click('[data-tab=inicio]');

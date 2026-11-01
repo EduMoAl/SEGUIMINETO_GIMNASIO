@@ -4,12 +4,14 @@
  * ~6 semanas de entrenos con progresión, un perfil, un historial de peso
  * y unos cuantos días antiguos "solo asistencia" (como los importados de Lyfta).
  * ===================================================================== */
-const fs = require('fs');
-const vm = require('vm');
-const path = require('path');
+const { RUTINA_PRUEBA } = require('./rutina-prueba');
 
-const c = {}; vm.createContext(c);
-vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'rutina.js'), 'utf8') + ';this.RUTINA=RUTINA;this.ORDEN=ORDEN_SESIONES;', c);
+// La rutina de prueba agrupada por sesión: { Empuje: [{ nombre, series }], … }
+const c = { RUTINA: {}, ORDEN: [] };
+for (const [ses, , nombre, series] of RUTINA_PRUEBA) {
+  if (!c.RUTINA[ses]) { c.RUTINA[ses] = []; c.ORDEN.push(ses); }
+  c.RUTINA[ses].push({ nombre, series });
+}
 
 const BASE = {
   'Press banca': 55, 'Press militar': 35, 'Fondos lastrados': 0, 'Contractora de pecho': 40, 'Press francés': 25,
@@ -61,15 +63,15 @@ async function sembrarPerfil(E) {
   for (const [fecha, peso] of [['2026-10-01', 80.4], ['2026-10-15', 79.8], ['2026-10-31', 79]]) await llamar(E, { tipo: 'peso', fecha, peso });
 }
 
-/** Días antiguos con asistencia pero sin series (pestaña Tiempos, fila "Sesión completa") */
-function sembrarAsistencia(sim, dias) {
-  const h = sim.hojas.Tiempos;
+/** Días antiguos con asistencia pero sin series (como el historial importado de otra app): solo una fila en Sesiones */
+function sembrarAsistencia(sim, dias, libro = sim.libro) {
+  const h = libro.hojas.Sesiones;
   let f = h.getLastRow() + 1;
   for (const [fecha, sesion, min] of dias) {
     const [y, m, d] = fecha.split('-').map(Number);
-    h.g[f - 1][0] = new Date(y, m - 1, d, 12); h.g[f - 1][1] = sesion; h.g[f - 1][2] = 'Sesión completa'; h.g[f - 1][3] = min;
+    h.getRange(f, 1, 1, 9).setValues([[`asis-${fecha}`, new Date(y, m - 1, d, 12), sesion, '', min, 0, 0, 'Solo asistencia', '']]);
     f++;
   }
 }
 
-module.exports = { sembrarEntrenos, sembrarPerfil, sembrarAsistencia };
+module.exports = { sembrarEntrenos, sembrarPerfil, sembrarAsistencia, RUTINA: c.RUTINA, ORDEN: c.ORDEN };

@@ -7,11 +7,7 @@ module.exports = async function (E) {
   await E.semilla.sembrarPerfil(E);
 
   const { ctx, page, errores } = await E.nuevaPagina(E.navegador);
-  await page.goto(E.app);
-  await page.click('[data-tab=ajustes]');
-  await page.fill('#cfg-url', E.script);
-  await page.fill('#cfg-clave', E.clave);
-  await page.click('[data-accion=probar]');
+  await E.conectar(page, E);
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('gym.cache') || '{}').perfil);
 
   // Inicio con nombre
@@ -75,7 +71,7 @@ module.exports = async function (E) {
   await page.click('[data-tab=progreso]');
   E.ok(await page.locator('.stat', { hasText: 'Tiempo medio' }).locator('.stat-valor').textContent() !== '—', 'tiempo medio por ejercicio');
   await page.click('[data-accion=modo-prog][data-valor=musculo]');
-  E.ok(await page.locator('.barra-fila').count() === 9, '9 grupos musculares');
+  E.ok(await page.locator('.barra-fila').count() === 13, '13 grupos musculares');
   E.ok((await page.locator('.barra-fila', { hasText: 'Pecho' }).locator('.barra-num').textContent()) === '10', 'series de pecho esta semana = 10');
   await page.locator('.barra-fila', { hasText: 'Pecho' }).click();
   E.ok(await page.locator('.barra-detalle').isVisible(), 'detalle al tocar un músculo');
@@ -121,6 +117,7 @@ module.exports = async function (E) {
   E.ok(await page.locator('.lista-resumen .meta').count() > 0, 'tiempos en el resumen');
   const antes = (await get('/hoja')).filas.length;
   const tiemposAntes = (await get('/pestana?n=Tiempos')).length;
+  const sesionesAntes = (await get('/pestana?n=Sesiones')).length;
   await page.click('[data-accion=confirmar]');
   await page.waitForFunction(() => !JSON.parse(localStorage.getItem('gym.pendientes') || '[]').length);
   await page.waitForTimeout(800);
@@ -128,7 +125,10 @@ module.exports = async function (E) {
   E.ok(filas.length === 5, `${filas.length} filas nuevas (4 + 1 del sustituto)`);
   E.ok(filas.some((f) => f[4] === 4) && filas.some((f) => f[3] === 'Remo en polea' && f[2] === 'Tirón'), 'serie extra (nº 4) y sustituto guardados en Registro');
   const tiempos = (await get('/pestana?n=Tiempos')).slice(tiemposAntes);
-  E.ok(tiempos.length === 3 && tiempos.some((f) => f[2] === 'Sesión completa'), 'tiempos guardados en la pestaña Tiempos');
+  E.ok(tiempos.length === 2 && tiempos.every((f) => f[0] === filas[0][0] && f[2] >= 0), 'tiempos por ejercicio en la pestaña Tiempos (con el ID de la sesión)');
+  const ses = (await get('/pestana?n=Sesiones')).slice(sesionesAntes);
+  E.ok(ses.length === 1 && ses[0][0] === filas[0][0] && ses[0][2] === 'Tirón' && ses[0][4] >= 40 && /^\d\d:\d\d$/.test(ses[0][3]) && ses[0][5] === 5 && ses[0][7] === 'App',
+    `fila en Sesiones: inicio ${ses[0] && ses[0][3]}, ${ses[0] && ses[0][4]} min, ${ses[0] && ses[0][5]} series`);
 
   E.ok(!errores.length, 'sin errores en consola' + (errores.length ? ': ' + errores.join(' | ') : ''));
   await ctx.close();

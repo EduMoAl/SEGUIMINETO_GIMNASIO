@@ -55,7 +55,7 @@ function vistaHistorial() {
     if (dia) {
       const ses = [...dia.sesiones.values()];
       cls.push(ses.every((s) => s.pendiente) ? 'pendiente' : 'entreno');
-      letras = ses.map((s) => (INFO_SESION[s.sesion] || { letra: '•' }).letra).join('');
+      letras = ses.map((s) => infoSesion(s.sesion).letra).join('');
     }
     if (iso === hoyIso) cls.push('hoy');
     if (iso === estHist.dia) cls.push('sel');
@@ -94,7 +94,7 @@ function vistaHistorial() {
       const ejs = ordenarEjercicios([...s.ejercicios.values()]);
       const minSes = idx.tiempoSesion.get(`${estHist.dia}|${s.sesion}`);
       html += `<div class="tarjeta dia-sesion">
-        <h4><span class="letra">${esc((INFO_SESION[s.sesion] || { letra: '•' }).letra)}</span>${esc(s.sesion)}
+        <h4><span class="letra">${esc(infoSesion(s.sesion).letra)}</span>${esc(s.sesion)}
           ${s.pendiente ? '<span class="etiqueta-pend">pendiente</span>' : ''}</h4>
         <div class="meta" style="margin-bottom:6px">${s.soloAsistencia
           ? `<span>${ico('info')}Asistencia registrada, sin series detalladas</span>`
@@ -174,10 +174,14 @@ let progresoPuntos = null;
 function htmlEjercicio() {
   const idx = indice();
   progresoPuntos = null;
-  if (!estProg.ejercicio) {
+  const grupos = gruposEjercicios(idx);
+  const todos = grupos.flatMap((g) => g.ejercicios);
+  if (!todos.length) {
+    return `<div class="tarjeta vacio" style="margin-top:12px">${ico('progreso')}Aún no hay ejercicios.<br>Aparecerán cuando tengas una rutina o registres una sesión.</div>`;
+  }
+  if (!estProg.ejercicio || !todos.includes(estProg.ejercicio)) {
     const guardado = leer(K.ejercicioProgreso, null);
-    const conDatos = [...ORDEN_EJ.keys()].find((n) => idx.evolucion.has(n));
-    estProg.ejercicio = guardado && ORDEN_EJ.has(guardado) ? guardado : conDatos || RUTINA[ORDEN_SESIONES[0]][0].nombre;
+    estProg.ejercicio = guardado && todos.includes(guardado) ? guardado : todos.find((n) => idx.evolucion.has(n)) || todos[0];
   }
   const nombre = estProg.ejercicio;
   const lista = idx.evolucion.get(nombre) || [];
@@ -185,11 +189,11 @@ function htmlEjercicio() {
   const met = METRICAS[estProg.metrica];
 
   let html = `<select class="selector" id="sel-ejercicio" aria-label="Ejercicio">`;
-  for (const s of ORDEN_SESIONES) {
-    html += `<optgroup label="${esc(s)}">`;
-    for (const ej of RUTINA[s]) {
-      const n = (idx.evolucion.get(ej.nombre) || []).length;
-      html += `<option value="${esc(ej.nombre)}" ${ej.nombre === nombre ? 'selected' : ''}>${esc(ej.nombre)}${n ? '' : ' · sin datos'}</option>`;
+  for (const g of grupos) {
+    html += `<optgroup label="${esc(g.titulo)}">`;
+    for (const n of g.ejercicios) {
+      const dias = (idx.evolucion.get(n) || []).length;
+      html += `<option value="${esc(n)}" ${n === nombre ? 'selected' : ''}>${esc(n)}${dias ? '' : ' · sin datos'}</option>`;
     }
     html += '</optgroup>';
   }
@@ -246,6 +250,23 @@ function htmlEjercicio() {
   }
   html += '</tbody></table></div>';
   return html;
+}
+
+/**
+ * Ejercicios agrupados por sesión de la rutina; los que tienen registros pero ya
+ * no están en la rutina van al final, en "Otros ejercicios".
+ */
+function gruposEjercicios(idx) {
+  const grupos = [];
+  const vistos = new Set();
+  for (const s of ORDEN_SESIONES) {
+    const ejercicios = RUTINA[s].map((e) => e.nombre).filter((n) => !vistos.has(n));
+    ejercicios.forEach((n) => vistos.add(n));
+    if (ejercicios.length) grupos.push({ titulo: s, letra: infoSesion(s).letra, ejercicios });
+  }
+  const otros = [...idx.evolucion.keys()].filter((n) => !vistos.has(n)).sort((a, b) => a.localeCompare(b, 'es'));
+  if (otros.length) grupos.push({ titulo: 'Otros ejercicios', letra: '•', ejercicios: otros });
+  return grupos;
 }
 
 /** Series por grupo muscular en una semana, con la media de las 4 anteriores */
@@ -307,6 +328,8 @@ function vistaPerfil() {
   const anos = edad(p.nacimiento);
   const imc = ultimoPeso && p.altura ? ultimoPeso[1] / Math.pow(p.altura / 100, 2) : null;
   const inicial = (p.nombre || '?').trim().charAt(0).toUpperCase();
+  const recordatorio = Number.isInteger(p.recordatorio) ? p.recordatorio : 7;
+  const email = (leerCache().usuario || {}).email || '';
 
   let html = `<div class="perfil-cab">
     <div class="avatar">${esc(inicial)}</div>
@@ -317,7 +340,7 @@ function vistaPerfil() {
   </div>`;
 
   if (!idx.perfil && !configCompleta()) {
-    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>Conecta la app con tu hoja en Ajustes para guardar tu perfil.</div></div>`;
+    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>Abre tu enlace de conexión para guardar tu perfil.</div></div>`;
   }
 
   html += `<div class="stats">
@@ -363,6 +386,9 @@ function vistaPerfil() {
       <label class="campo">Nombre<input id="pf-nombre" autocomplete="off" value="${esc(p.nombre || '')}"></label>
       <label class="campo">Fecha de nacimiento<input id="pf-nacimiento" type="date" value="${esc(p.nacimiento || '')}" max="${hoy()}"></label>
       <label class="campo">Altura (cm)<input id="pf-altura" inputmode="numeric" autocomplete="off" value="${p.altura ? esc(p.altura) : ''}"></label>
+      <label class="campo">Recordatorio por email
+        <select id="pf-recordatorio">${OPCIONES_RECORDATORIO.map((d) => `<option value="${d}" ${d === recordatorio ? 'selected' : ''}>${esc(textoRecordatorio(d))}</option>`).join('')}</select>
+      </label>
       <div class="fila-botones" style="margin-top:0">
         <button class="btn" data-accion="cancelar-perfil">Cancelar</button>
         <button class="btn primario" data-accion="guardar-perfil">${ico('subir')}Guardar</button>
@@ -372,13 +398,21 @@ function vistaPerfil() {
       <div class="info-fila"><span>Nombre</span><span>${esc(p.nombre || '—')}</span></div>
       <div class="info-fila"><span>Fecha de nacimiento</span><span>${p.nacimiento ? esc(p.nacimiento.split('-').reverse().join('/')) : '—'}</span></div>
       <div class="info-fila"><span>Altura</span><span>${p.altura ? num(p.altura, 0) + ' cm' : '—'}</span></div>
+      <div class="info-fila"><span>Recordatorio</span><span>${esc(textoRecordatorio(recordatorio))}</span></div>
+      ${email ? `<div class="info-fila"><span>Email</span><span>${esc(email)}</span></div>` : ''}
       <button class="btn ancho" style="margin-top:14px" data-accion="editar-perfil">${ico('nota')}Editar datos</button>`;
   }
-  html += `<p class="tenue" style="margin:14px 0 0">Se guardan en la pestaña Perfil de tu hoja. Para editarlos necesitas internet.</p></div>`;
+  html += `<p class="tenue" style="margin:14px 0 0">Se guardan en tu hoja. Para editarlos necesitas internet.${email ? '' : ' Para recibir emails, pide al administrador que añada tu email.'}</p></div>`;
 
   $('#vista').innerHTML = html;
   const g = $('#grafico-peso');
   if (g) dibujarGrafico(g, pesos.map(([fecha, kg]) => ({ fecha, valor: kg })), { formato: (v) => `${num(v, 1)} kg` });
+}
+
+// Días sin entrenar antes del email de recordatorio (0 = nunca)
+const OPCIONES_RECORDATORIO = [0, 3, 4, 5, 6, 7, 10, 14, 21, 30];
+function textoRecordatorio(d) {
+  return d > 0 ? `Tras ${d} días sin entrenar` : 'Desactivado';
 }
 
 function htmlRecord(r) {
@@ -405,15 +439,15 @@ function vistaRecords() {
   // Récords actuales por ejercicio
   html += `<div class="seccion-titulo" style="margin-top:4px">Tus mejores marcas</div>`;
   let alguno = false;
-  for (const s of ORDEN_SESIONES) {
-    const filas = RUTINA[s].filter((ej) => idx.records.has(ej.nombre));
+  for (const g of gruposEjercicios(idx)) {
+    const filas = g.ejercicios.filter((n) => idx.records.has(n));
     if (!filas.length) continue;
     alguno = true;
-    html += `<div class="tarjeta"><div class="muro-sesion"><span class="letra">${INFO_SESION[s].letra}</span>${esc(s)}</div>`;
-    for (const ej of filas) {
-      const r = idx.records.get(ej.nombre);
+    html += `<div class="tarjeta"><div class="muro-sesion"><span class="letra">${esc(g.letra)}</span>${esc(g.titulo)}</div>`;
+    for (const n of filas) {
+      const r = idx.records.get(n);
       html += `<div class="muro-fila">
-        <b>${esc(ej.nombre)}</b>
+        <b>${esc(n)}</b>
         <div class="muro-valores">
           <span><small>Peso</small>${num(r.peso)} kg <em>${esc(fechaCorta(r.fechaPeso))}</em>${r.seriePeso ? `<i class="pr-serie">(${esc(serieTxt(r.seriePeso))})</i>` : ''}</span>
           <span><small>1RM est.</small>${num(r.rm1, 1)} kg <em>${esc(fechaCorta(r.fechaRm1))}</em>${r.serieRm1 ? `<i class="pr-serie">(${esc(serieTxt(r.serieRm1))})</i>` : ''}</span>
@@ -449,13 +483,14 @@ function vistaRecords() {
 function vistaAjustes() {
   barra('<h1>Ajustes</h1>');
   const c = leer(K.config, {});
-  const cache = leer(K.cache, { filas: [] });
+  const cache = leerCache();
   const pendientes = leer(K.pendientes, []);
   const pr = prefs();
+  const conectada = configCompleta();
 
   let descansos = '';
   for (const s of ORDEN_SESIONES) {
-    descansos += `<div class="muro-sesion" style="margin-top:16px"><span class="letra">${INFO_SESION[s].letra}</span>${esc(s)}</div>`;
+    descansos += `<div class="muro-sesion" style="margin-top:16px"><span class="letra">${esc(infoSesion(s).letra)}</span>${esc(s)}</div>`;
     for (const ej of RUTINA[s]) {
       const seg = descansoDe(ej.nombre);
       descansos += `<div class="descanso-ajuste">
@@ -468,21 +503,38 @@ function vistaAjustes() {
       </div>`;
     }
   }
+  const series = (cache.sesiones || []).reduce((a, x) => a + (x.filas || []).length, 0);
 
   $('#vista').innerHTML = `
-    <div class="seccion-titulo" style="margin-top:4px">Conexión con la hoja</div>
+    <div class="seccion-titulo" style="margin-top:4px">Tu cuenta</div>
     <div class="tarjeta">
-      <label class="campo">URL del script (aplicación web)
-        <input id="cfg-url" type="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(c.url || '')}">
-      </label>
-      <label class="campo">Clave secreta
-        <input id="cfg-clave" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(c.clave || '')}">
-      </label>
-      <div class="fila-botones">
-        <button class="btn primario" data-accion="guardar-config">${ico('check')}Guardar</button>
-        <button class="btn" data-accion="probar">${ico('enlace')}Probar</button>
-      </div>
+      ${conectada ? `
+        <div class="cuenta">
+          <div class="avatar peq">${esc(((cache.usuario || {}).nombre || c.nombre || '?').charAt(0).toUpperCase())}</div>
+          <div><b>${esc((cache.usuario || {}).nombre || c.nombre || 'Conectada')}</b>
+            <span class="tenue">${cache.admin ? 'Administrador' : 'Usuario'} · conectada a tu hoja</span></div>
+        </div>
+        <div class="fila-botones">
+          <button class="btn" data-accion="probar">${ico('enlace')}Probar</button>
+          <button class="btn" data-accion="desconectar">${ico('x')}Desconectar</button>
+        </div>`
+      : `<p style="margin-top:0">${configAntigua()
+          ? 'La app ahora funciona con <b>cuentas</b>. Abre el <b>enlace de conexión</b> que te llegó por email: la app se conecta sola.'
+          : 'Para conectar la app abre el <b>enlace de conexión</b> que te envió el administrador (por email o con un código QR).'}</p>`}
+      <details class="manual" ${conectada ? '' : 'open'}>
+        <summary>Conectar a mano</summary>
+        <label class="campo">Enlace de conexión
+          <input id="cfg-enlace" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…#conectar=…">
+        </label>
+        <button class="btn primario ancho" data-accion="conectar-enlace">${ico('enlace')}Conectar</button>
+      </details>
     </div>
+
+    ${cache.admin ? `
+    <div class="seccion-titulo">Administración</div>
+    <div class="tarjeta">
+      <button class="fila-enlace" data-accion="ver-usuarios">${ico('perfil')}<span><b>Usuarios</b><span class="tenue">Añadir amigos, enlaces de conexión y hojas</span></span>${ico('sig')}</button>
+    </div>` : ''}
 
     <div class="seccion-titulo">Aviso de fin de descanso</div>
     <div class="tarjeta">
@@ -491,19 +543,21 @@ function vistaAjustes() {
       <p class="tenue" style="margin:10px 0 0">Se guardan solo en este móvil.</p>
     </div>
 
+    ${ORDEN_SESIONES.length ? `
     <div class="seccion-titulo">Descansos por ejercicio</div>
     <div class="tarjeta">
-      <p class="tenue" style="margin-top:0">Se guardan en la pestaña Rutina de tu hoja (columna Descanso). Necesitas internet para cambiarlos.</p>
+      <p class="tenue" style="margin-top:0">Se guardan en la rutina de tu hoja. Necesitas internet para cambiarlos.</p>
       ${descansos}
-    </div>
+    </div>` : ''}
 
     <div class="seccion-titulo">Datos</div>
     <div class="tarjeta">
       <div class="info-fila"><span>Última descarga de la hoja</span><span>${esc(hace(cache.actualizado))}</span></div>
-      <div class="info-fila"><span>Series en la hoja</span><span>${(cache.filas || []).length}</span></div>
+      <div class="info-fila"><span>Sesiones en la hoja</span><span>${(cache.sesiones || []).length}</span></div>
+      <div class="info-fila"><span>Series en la hoja</span><span>${series}</span></div>
       <div class="info-fila"><span>Sesiones pendientes de enviar</span><span>${pendientes.length}</span></div>
-      <button class="btn ancho" style="margin-top:14px" data-accion="actualizar-forzado">${ico('refrescar')}Actualizar datos ahora</button>
-      <p class="tenue" style="margin:14px 0 0">La hoja de Google es la única fuente de datos. El móvil guarda una copia de solo lectura para usar la app sin internet.</p>
+      <button class="btn ancho" style="margin-top:14px" data-accion="actualizar-forzado">${ico('refrescar')}Descargar todo de nuevo</button>
+      <p class="tenue" style="margin:14px 0 0">La hoja de Google es la única fuente de datos. El móvil guarda una copia de solo lectura para usar la app sin internet y solo descarga lo que cambia.</p>
     </div>
 
     <div class="seccion-titulo">Acerca de</div>
@@ -511,6 +565,7 @@ function vistaAjustes() {
       <div class="info-fila"><span>App</span><span>EDUX TRAINING</span></div>
       <div class="info-fila"><span>Versión</span><span>${VERSION_APP}</span></div>
       <div class="info-fila"><span>Mapa muscular</span><span>react-native-body-highlighter (MIT)</span></div>
+      <div class="info-fila"><span>Códigos QR</span><span>qrcode-generator (MIT)</span></div>
       <div class="info-fila"><span>Tipografías</span><span>Barlow (OFL)</span></div>
     </div>`;
 }
@@ -566,7 +621,10 @@ async function accionVistas(accion, b) {
     case 'cancelar-perfil': estPerfil.editando = false; repintar(); return true;
     case 'guardar-perfil': {
       const altura = $('#pf-altura').value.trim().replace(',', '.');
-      const perfil = { nombre: $('#pf-nombre').value.trim(), nacimiento: $('#pf-nacimiento').value, altura: altura === '' ? '' : Number(altura) };
+      const perfil = {
+        nombre: $('#pf-nombre').value.trim(), nacimiento: $('#pf-nacimiento').value, altura: altura === '' ? '' : Number(altura),
+        recordatorio: Number($('#pf-recordatorio').value)
+      };
       if (perfil.altura !== '' && (!Number.isFinite(perfil.altura) || perfil.altura < 100 || perfil.altura > 250)) return aviso('La altura va en centímetros (por ejemplo 188)', 'error'), true;
       b.disabled = true;
       if (await escribirEnHoja({ tipo: 'perfil', perfil }, 'Perfil guardado en la hoja')) estPerfil.editando = false;
@@ -576,19 +634,39 @@ async function accionVistas(accion, b) {
     }
 
     // Ajustes
-    case 'guardar-config':
-      guardar(K.config, { url: $('#cfg-url').value.trim(), clave: $('#cfg-clave').value.trim() });
-      aviso('Ajustes guardados', 'ok', 3);
+    case 'conectar-enlace': {
+      const datos = leerEnlaceConexion($('#cfg-enlace').value.trim());
+      if (!datos) return aviso('Pega el enlace completo (termina en #conectar=…)', 'error', 6), true;
+      const previa = leer(K.config, {});
+      const n = leer(K.pendientes, []).length;
+      if (previa.v2 && previa.clave !== datos.clave && n &&
+          !confirm(`Tienes ${n} ${n === 1 ? 'sesión' : 'sesiones'} sin enviar. Si cambias de cuenta se enviarán a la cuenta nueva. ¿Cambiar de cuenta?`)) return true;
+      b.disabled = true;
+      await conectarCuenta(datos);
+      repintar();
       return true;
+    }
     case 'probar': {
-      guardar(K.config, { url: $('#cfg-url').value.trim(), clave: $('#cfg-clave').value.trim() });
-      if (!configCompleta()) return aviso('Rellena la URL y la clave', 'error'), true;
       aviso('Probando…', 'info', 0);
       const r = await llamarScript({ tipo: 'ping' });
-      aviso(r.ok ? r.mensaje : r.error, r.ok ? 'ok' : 'error', 8);
+      aviso(r.ok ? `${r.mensaje} Cuenta: ${r.nombre}` : mensajeError(r), r.ok ? 'ok' : 'error', 8);
       if (r.ok) actualizarDatos();
       return true;
     }
+    case 'desconectar': {
+      const n = leer(K.pendientes, []).length;
+      if (!confirm(n
+        ? `Tienes ${n} ${n === 1 ? 'sesión' : 'sesiones'} sin enviar que se perderán. ¿Desconectar de todos modos?`
+        : '¿Desconectar la app de tu cuenta? Para volver a conectarla necesitarás tu enlace de conexión.')) return true;
+      [K.config, K.cache, K.pendientes, K.ejercicioProgreso].forEach((k) => localStorage.removeItem(k));
+      cargarRutina([]);
+      invalidarIndice();
+      actualizarEstadoRed();
+      repintar();
+      aviso('App desconectada', 'info', 3);
+      return true;
+    }
+    case 'ver-usuarios': navegar('usuarios'); return true;
     case 'descanso-ej': {
       const nombre = b.dataset.ej;
       const seg = Math.max(15, descansoDe(nombre) + Number(b.dataset.delta));

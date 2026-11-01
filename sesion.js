@@ -5,8 +5,11 @@
  *
  * La sesión en curso se guarda en el móvil (K.actual) en cada pulsación:
  *   { id, sesion, fecha, inicio, ultimaMarca,
+ *     ejercicios: [copia de los ejercicios de la rutina al empezar],
  *     datos: { [ejercicio de la rutina]: { series:[{peso,reps,hecha}], nota,
  *                                          sustituto?, inicio?, fin? } } }
+ * La copia de los ejercicios hace que un cambio de la rutina en la hoja no
+ * afecte a una sesión ya empezada.
  * ===================================================================== */
 
 let abiertos = new Set();   // ejercicios completos desplegados a mano
@@ -30,9 +33,15 @@ function leerReps(texto) {
   return Number.isInteger(n) && n >= 0 && n <= 100 ? n : NaN;
 }
 
+/** Ejercicios de la sesión en curso (la copia guardada al empezar) */
+function ejerciciosDe(actual) {
+  return actual.ejercicios || RUTINA[actual.sesion] || [];
+}
+
 function crearSesion(nombreSesion) {
   const datos = {};
-  for (const ej of RUTINA[nombreSesion]) {
+  const ejercicios = RUTINA[nombreSesion].map((e) => ({ nombre: e.nombre, series: e.series, objetivos: e.objetivos.slice() }));
+  for (const ej of ejercicios) {
     datos[ej.nombre] = {
       series: Array.from({ length: ej.series }, () => ({ peso: '', reps: '', hecha: false })),
       nota: ''
@@ -40,12 +49,13 @@ function crearSesion(nombreSesion) {
   }
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
-    sesion: nombreSesion, fecha: hoy(), inicio: new Date().toISOString(), datos
+    sesion: nombreSesion, fecha: hoy(), inicio: new Date().toISOString(), ejercicios, datos
   };
 }
 
 function empezarSesion(nombre) {
   const actual = leer(K.actual, null);
+  if (!RUTINA[nombre] && !(actual && actual.sesion === nombre)) return aviso('Esa sesión ya no está en tu rutina', 'error');
   if (actual && actual.sesion !== nombre &&
       !confirm(`Tienes una sesión de ${actual.sesion} en curso. ¿Descartarla y empezar ${nombre}?`)) return;
   if (!actual || actual.sesion !== nombre) {
@@ -78,7 +88,7 @@ function ejercicioCompleto(d) { return d.series.every(serieHecha); }
 
 function progresoSesion(actual) {
   let hechas = 0, total = 0;
-  for (const ej of RUTINA[actual.sesion]) {
+  for (const ej of ejerciciosDe(actual)) {
     for (const s of actual.datos[ej.nombre].series) { total++; if (serieHecha(s)) hechas++; }
   }
   return { hechas, total };
@@ -137,7 +147,7 @@ function analizarSesion(actual) {
   let volumen = 0;
   const records = [];   // { ejercicio, txt } — el mejor récord de cada ejercicio
 
-  for (const ej of RUTINA[actual.sesion]) {
+  for (const ej of ejerciciosDe(actual)) {
     const d = actual.datos[ej.nombre];
     const nombre = nombreReal(ej, d);
     const series = [];
@@ -172,7 +182,7 @@ function analizarSesion(actual) {
     }
   }
   const duracion = Math.round(((actual.fin || Date.now()) - new Date(actual.inicio).getTime()) / 6000) / 10;
-  const sesion = { id: actual.id, sesion: actual.sesion, fecha: actual.fecha, ejercicios, tiempos, duracion };
+  const sesion = { id: actual.id, sesion: actual.sesion, fecha: actual.fecha, inicio: actual.inicio, ejercicios, tiempos, duracion };
   const totalSeries = ejercicios.reduce((a, e) => a + e.series.length, 0);
   return { sesion, problemas, avisos, totalSeries, volumen, records };
 }
@@ -201,12 +211,12 @@ function vistaSesion() {
   barra(`${BTN_ATRAS}<div class="titulo-sesion"><b>${esc(actual.sesion)}</b><span id="reloj"></span></div>
     <div class="anillo" aria-hidden="true"><svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" class="pista"/><circle cx="23" cy="23" r="19" class="arco" pathLength="100" stroke-dasharray="0 100"/></svg><b id="anillo-n">0</b></div>`);
 
-  const rutina = RUTINA[actual.sesion];
+  const rutina = ejerciciosDe(actual);
   const idxActual = rutina.findIndex((ej) => !ejercicioCompleto(actual.datos[ej.nombre]));
 
   let html = `
     <div class="cab-sesion">
-      <span>${esc(INFO_SESION[actual.sesion].grupos)}</span>
+      <span>${esc(infoSesion(actual.sesion).grupos)}</span>
       <input type="date" id="fecha-sesion" value="${esc(actual.fecha)}" max="${hoy()}" aria-label="Fecha de la sesión">
     </div>`;
   rutina.forEach((ej, i) => { html += tarjetaEjercicio(actual, ej, i, idxActual); });
@@ -219,7 +229,7 @@ function vistaSesion() {
 /** Opciones para sustituir: ejercicios de la rutina que no están ya en esta sesión */
 function opcionesSustituto(actual, ej, d) {
   const usados = new Set();
-  for (const e of RUTINA[actual.sesion]) {
+  for (const e of ejerciciosDe(actual)) {
     usados.add(e.nombre);
     if (actual.datos[e.nombre].sustituto) usados.add(actual.datos[e.nombre].sustituto);
   }
@@ -328,7 +338,7 @@ function actualizarCabeceraSesion() {
   const n = $('#anillo-n');
   if (n) n.textContent = hechas;
   $('#progreso-sesion .relleno').style.width = `${pct}%`;
-  RUTINA[actual.sesion].forEach((ej, i) => {
+  ejerciciosDe(actual).forEach((ej, i) => {
     const d = actual.datos[ej.nombre];
     const t = document.querySelector(`.ej-tiempo[data-ej="${i}"]`);
     if (!t) return;
@@ -345,7 +355,7 @@ function contexto(el) {
   const sec = el.closest('.ejercicio');
   if (!actual || !sec) return null;
   const iEj = Number(sec.dataset.ej);
-  const ej = RUTINA[actual.sesion][iEj];
+  const ej = ejerciciosDe(actual)[iEj];
   const d = actual.datos[ej.nombre];
   const fila = el.closest('.serie');
   const iS = fila ? Number(fila.dataset.serie) : null;
@@ -422,7 +432,7 @@ function marcarSerie(el) {
     abiertos.delete(c.iEj);
     cerrados.delete(c.iEj);
     repintar();
-    const rutina = RUTINA[c.actual.sesion];
+    const rutina = ejerciciosDe(c.actual);
     const sig = rutina.findIndex((e) => !ejercicioCompleto(c.actual.datos[e.nombre]));
     if (sig >= 0) { cerrados.delete(sig); const t = $(`#ej-${sig}`); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   } else {
@@ -558,7 +568,7 @@ function vistaResumen() {
   let html = `<section class="resumen-hero">
     <div class="hero-etiqueta">${esc(fechaMedia(actual.fecha)).toUpperCase()}</div>
     <div class="hero-nombre">${esc(actual.sesion)}</div>
-    <div class="hero-grupos">${esc(INFO_SESION[actual.sesion].grupos)}</div>
+    <div class="hero-grupos">${esc(infoSesion(actual.sesion).grupos)}</div>
     <div class="resumen-cifras">
       <div><b>${totalSeries}</b><span>series</span></div>
       <div><b>${volumenTxt(volumen).replace(' ', '')}</b><span>volumen</span></div>

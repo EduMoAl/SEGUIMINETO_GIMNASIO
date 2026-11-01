@@ -3,13 +3,12 @@
 /* =====================================================================
  * Lo que la app guarda en el móvil (localStorage). La hoja de Google es la
  * única fuente de verdad; aquí solo hay:
- *  - config:     URL del script y clave secreta.
+ *  - config:     URL del script central y la clave de tu cuenta (llegan con el enlace de conexión).
  *  - actual:     la sesión que estás haciendo (para no perderla si se cierra la app).
  *  - pendientes: sesiones terminadas que aún no han llegado a la hoja.
  *                Se borran en cuanto la hoja confirma que las ha recibido.
- *  - cache:      copia de SOLO LECTURA de la hoja (Registro, descansos de Rutina,
- *                Tiempos y Perfil), para consultar todo sin internet.
- *                Se sustituye entera cada vez que se descarga de la hoja.
+ *  - cache:      copia de SOLO LECTURA de tu hoja (rutina, sesiones y perfil), para
+ *                consultar todo sin internet. Se actualiza con lo que cambia en la hoja.
  * ===================================================================== */
 
 const K = {
@@ -48,9 +47,38 @@ function guardar(clave, valor) {
   localStorage.setItem(clave, JSON.stringify(valor));
 }
 
+/** Conectada al script central (las conexiones de la versión antigua no valen) */
 function configCompleta() {
   const c = leer(K.config, {});
-  return Boolean(c.url && c.clave);
+  return Boolean(c.url && c.clave && c.v2);
+}
+
+/** Había una conexión de la versión antigua (un solo usuario) */
+function configAntigua() {
+  const c = leer(K.config, {});
+  return Boolean(c.url && c.clave && !c.v2);
+}
+
+const FORMATO_CACHE = 2;
+/** Copia local de la hoja (vacía si es de otra versión) */
+function leerCache() {
+  const c = leer(K.cache, null);
+  return c && c.formato === FORMATO_CACHE ? c : { formato: FORMATO_CACHE, sesiones: [], rutina: [], perfil: null, admin: false, actualizado: null };
+}
+
+/** Datos de un enlace de conexión: …#conectar=<base64url de {"u": url, "c": clave}> */
+function leerEnlaceConexion(texto) {
+  const m = /[#&]conectar=([A-Za-z0-9_-]+)/.exec(String(texto || ''));
+  if (!m) return null;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '==='.slice((b64.length + 3) % 4));
+    const d = JSON.parse(decodeURIComponent(escape(bin)));
+    if (typeof d.u !== 'string' || typeof d.c !== 'string' || !/^https?:\/\//.test(d.u) || !d.c) return null;
+    return { url: d.u, clave: d.c };
+  } catch (e) {
+    return null;
+  }
 }
 
 // ---------- Utilidades de formato compartidas ----------
@@ -124,8 +152,7 @@ function prTxt(valor, serie, dec = 2) {
 function mmss(seg) {
   return `${Math.floor(seg / 60)}:${String(Math.round(seg % 60)).padStart(2, '0')}`;
 }
-/** "3,5 min" → 210 (segundos) */
-function descansoSegundos(texto) {
-  const n = parseFloat(String(texto).replace(',', '.'));
-  return Number.isFinite(n) ? Math.round(n * 60) : 120;
+/** 210 → "3,5 min" (como se escribe en la columna Descanso de la hoja) */
+function descansoTexto(seg) {
+  return `${num(seg / 60, 2)} min`;
 }

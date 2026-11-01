@@ -15,7 +15,6 @@ module.exports = async function (E) {
   const limpio = (t) => t.replace(/\s+/g, ' ').trim();
 
   const { ctx, page, errores } = await E.nuevaPagina(E.navegador);
-  await page.goto(E.app);
   await E.conectar(page, E);
 
   await page.click('[data-tab=progreso]');

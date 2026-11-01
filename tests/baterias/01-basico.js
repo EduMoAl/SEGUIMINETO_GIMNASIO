@@ -6,15 +6,13 @@ module.exports = async function (E) {
   const HOY = E.HOY;
 
   const { ctx, page, errores } = await E.nuevaPagina(E.navegador);
-  await page.goto(E.app);
 
-  // Configurar
-  await page.click('[data-tab=ajustes]');
-  await page.fill('#cfg-url', E.script);
-  await page.fill('#cfg-clave', E.clave);
-  await page.click('[data-accion=probar]');
-  await page.waitForFunction(() => (JSON.parse(localStorage.getItem('gym.cache') || '{}').filas || []).length > 0);
-  E.ok(true, 'conexión y descarga de datos de la hoja');
+  // Conectar con el enlace de conexión
+  await E.conectar(page, E);
+  const cache = await E.cacheApp(page);
+  E.ok(cache.sesiones.length === 17 && cache.rutina.length === 23, `enlace de conexión: ${cache.sesiones.length} sesiones y rutina de ${cache.rutina.length} ejercicios descargadas`);
+  E.ok(!page.url().includes('conectar='), 'el enlace (con la clave) se quita de la barra de direcciones');
+  E.ok((await page.textContent('#toast')).includes('Conectado como Prueba'), 'aviso "Conectado como Prueba"');
 
   // Inicio
   await page.click('[data-tab=inicio]');
@@ -93,8 +91,7 @@ module.exports = async function (E) {
   await page.waitForTimeout(800);
   const despues = (await hoja()).length;
   E.ok(despues - antes === nSeries, `${despues - antes} filas nuevas en la hoja`);
-  const cacheN = await page.evaluate(() => JSON.parse(localStorage.getItem('gym.cache')).filas.length);
-  E.ok(cacheN === despues, 'copia local actualizada tras enviar');
+  E.ok(await E.seriesEnCache(page) === despues, 'copia local actualizada tras enviar');
   E.ok((await page.textContent('.hero-nombre')).trim() !== sig.trim(), 'el siguiente entreno avanza en la rotación');
   await page.click('[data-tab=historial]');
   E.ok(await page.locator('.cal-dia.hoy.entreno').count() === 1, 'hoy aparece marcado en el calendario');

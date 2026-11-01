@@ -1,7 +1,7 @@
 'use strict';
 
 /* =====================================================================
- * Convierte las filas de la hoja (copia en caché) en estructuras útiles:
+ * Convierte las sesiones de la hoja (copia en caché) en estructuras útiles:
  * días entrenados, evolución por ejercicio, récords y estadísticas.
  * También incluye las sesiones pendientes de enviar (marcadas como tales),
  * para que "última vez" y los récords sean correctos aunque aún no hayan
@@ -22,31 +22,53 @@ function indice() {
 }
 
 function construirIndice() {
-  const cache = leer(K.cache, { filas: [] });
+  const cache = leerCache();
   const filas = [];
+  const dias = new Map();
+  const tiempoSesion = new Map();   // "fecha|sesión" → minutos totales
+  const tiempoDiaEj = new Map();    // "fecha|sesión|ejercicio" → minutos
+  const tiemposEj = new Map();      // ejercicio → [minutos, ...]
+  const anotarTiempo = (fecha, sesion, ejercicio, min) => {
+    if (!Number.isFinite(min)) return;
+    tiempoDiaEj.set(`${fecha}|${sesion}|${ejercicio}`, min);
+    if (!tiemposEj.has(ejercicio)) tiemposEj.set(ejercicio, []);
+    tiemposEj.get(ejercicio).push(min);
+  };
+  const sesionDelDia = (fecha, nombre, pendiente) => {
+    if (!dias.has(fecha)) dias.set(fecha, { fecha, sesiones: new Map() });
+    const dia = dias.get(fecha);
+    const clave = nombre || '—';
+    if (!dia.sesiones.has(clave)) dia.sesiones.set(clave, { sesion: clave, pendiente, ejercicios: new Map(), soloAsistencia: true });
+    return dia.sesiones.get(clave);
+  };
 
-  for (const f of cache.filas || []) {
-    const [fecha, sesion, ejercicio, serie, peso, reps, nota] = f;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !ejercicio) continue;
-    filas.push({ fecha, sesion, ejercicio, serie: Number(serie) || 0, peso: Number(peso) || 0, reps: Number(reps) || 0, nota: nota || '', pendiente: false });
-  }
-  for (const p of leer(K.pendientes, [])) {
-    for (const ej of p.ejercicios) {
-      ej.series.forEach((s, i) => filas.push({
-        fecha: p.fecha, sesion: p.sesion, ejercicio: ej.nombre, serie: s.serie,
-        peso: s.peso, reps: s.reps, nota: i === 0 ? ej.nota : '', pendiente: true
-      }));
+  // Sesiones de la hoja y las pendientes de enviar (marcadas como tales)
+  const todas = [
+    ...(cache.sesiones || []).map((s) => ({ ...s, pendiente: false })),
+    ...leer(K.pendientes, []).map((p) => ({
+      fecha: p.fecha, sesion: p.sesion, duracion: p.duracion, pendiente: true,
+      filas: p.ejercicios.flatMap((ej) => ej.series.map((x, i) => [ej.nombre, x.serie, x.peso, x.reps, i === 0 ? ej.nota : ''])),
+      tiempos: (p.tiempos || []).map((t) => [t.ejercicio, t.minutos])
+    }))
+  ];
+  for (const s of todas) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.fecha || '')) continue;
+    // Un día con una sesión registrada cuenta como entrenado aunque no tenga series
+    // (p. ej. el historial de asistencia importado de otra app)
+    const ses = sesionDelDia(s.fecha, s.sesion, s.pendiente);
+    if (!s.pendiente) ses.pendiente = false;
+    for (const [ejercicio, serie, peso, reps, nota] of s.filas || []) {
+      if (!ejercicio) continue;
+      filas.push({ fecha: s.fecha, sesion: s.sesion, ejercicio, serie: Number(serie) || 0, peso: Number(peso) || 0, reps: Number(reps) || 0, nota: nota || '', pendiente: s.pendiente });
     }
+    if (s.duracion > 0) tiempoSesion.set(`${s.fecha}|${s.sesion || '—'}`, (tiempoSesion.get(`${s.fecha}|${s.sesion || '—'}`) || 0) + Number(s.duracion));
+    for (const [ejercicio, min] of s.tiempos || []) anotarTiempo(s.fecha, s.sesion || '—', ejercicio, Number(min));
   }
 
   // --- Días → sesiones → ejercicios ---
-  const dias = new Map();
   for (const f of filas) {
-    if (!dias.has(f.fecha)) dias.set(f.fecha, { fecha: f.fecha, sesiones: new Map() });
-    const dia = dias.get(f.fecha);
-    const claveSesion = f.sesion || '—';
-    if (!dia.sesiones.has(claveSesion)) dia.sesiones.set(claveSesion, { sesion: claveSesion, pendiente: f.pendiente, ejercicios: new Map() });
-    const ses = dia.sesiones.get(claveSesion);
+    const ses = sesionDelDia(f.fecha, f.sesion, f.pendiente);
+    ses.soloAsistencia = false;
     if (!ses.ejercicios.has(f.ejercicio)) ses.ejercicios.set(f.ejercicio, { nombre: f.ejercicio, series: [], nota: '' });
     const ej = ses.ejercicios.get(f.ejercicio);
     ej.series.push({ serie: f.serie, peso: f.peso, reps: f.reps });
@@ -56,16 +78,6 @@ function construirIndice() {
     for (const ses of dia.sesiones.values()) {
       for (const ej of ses.ejercicios.values()) ej.series.sort((a, b) => a.serie - b.serie);
     }
-  }
-
-  // Días de asistencia sin series (p. ej. historial importado de Lyfta): una fila
-  // "Sesión completa" en la pestaña Tiempos basta para marcar que fuiste al gimnasio.
-  for (const [fecha, sesion, ejercicio] of cache.tiempos || []) {
-    if (ejercicio !== TOTAL_SESION || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
-    if (!dias.has(fecha)) dias.set(fecha, { fecha, sesiones: new Map() });
-    const dia = dias.get(fecha);
-    const clave = sesion || '—';
-    if (!dia.sesiones.has(clave)) dia.sesiones.set(clave, { sesion: clave, pendiente: false, ejercicios: new Map(), soloAsistencia: true });
   }
 
   // --- Evolución por ejercicio (un punto por día) ---
@@ -122,43 +134,19 @@ function construirIndice() {
       bestR = bestR === null ? d.rm1 : Math.max(bestR, d.rm1);
     }
   }
-  historialRecords.sort((a, b) => b.fecha.localeCompare(a.fecha) || (ORDEN_EJ_DATOS.get(a.ejercicio) ?? 999) - (ORDEN_EJ_DATOS.get(b.ejercicio) ?? 999));
-
-  // --- Tiempos (pestaña Tiempos + pendientes) ---
-  const tiempoSesion = new Map();   // "fecha|sesión" → minutos totales
-  const tiempoDiaEj = new Map();    // "fecha|sesión|ejercicio" → minutos
-  const tiemposEj = new Map();      // ejercicio → [minutos, ...]
-  const anotarTiempo = (fecha, sesion, ejercicio, min) => {
-    if (ejercicio === TOTAL_SESION) { tiempoSesion.set(`${fecha}|${sesion}`, min); return; }
-    tiempoDiaEj.set(`${fecha}|${sesion}|${ejercicio}`, min);
-    if (!tiemposEj.has(ejercicio)) tiemposEj.set(ejercicio, []);
-    tiemposEj.get(ejercicio).push(min);
-  };
-  for (const [fecha, sesion, ejercicio, min] of cache.tiempos || []) anotarTiempo(fecha, sesion, ejercicio, Number(min));
-  for (const p of leer(K.pendientes, [])) {
-    for (const t of p.tiempos || []) anotarTiempo(p.fecha, p.sesion, t.ejercicio, t.minutos);
-    if (p.duracion) anotarTiempo(p.fecha, p.sesion, TOTAL_SESION, p.duracion);
-  }
+  historialRecords.sort((a, b) => b.fecha.localeCompare(a.fecha) || (ORDEN_EJ.get(a.ejercicio) ?? 999) - (ORDEN_EJ.get(b.ejercicio) ?? 999));
 
   return {
     dias, evolucion, records, ultimaSesion, historialRecords,
     tiempoSesion, tiempoDiaEj, tiemposEj,
-    descansos: cache.descansos || {},
     perfil: cache.perfil || null,
     actualizado: cache.actualizado || null
   };
 }
 
-const TOTAL_SESION = 'Sesión completa';
-const ORDEN_EJ_DATOS = new Map();
-ORDEN_SESIONES.forEach((s) => RUTINA[s].forEach((ej) => ORDEN_EJ_DATOS.set(ej.nombre, ORDEN_EJ_DATOS.size)));
-const DEF_EJERCICIO = new Map();
-ORDEN_SESIONES.forEach((s) => RUTINA[s].forEach((ej) => DEF_EJERCICIO.set(ej.nombre, ej)));
-
-/** Descanso de un ejercicio en segundos: el de la hoja (pestaña Rutina) o el de la app */
+/** Descanso de un ejercicio en segundos (columna Descanso de la Rutina) */
 function descansoDe(nombre) {
-  const texto = indice().descansos[nombre] || (DEF_EJERCICIO.get(nombre) || {}).descanso || '2 min';
-  return descansoSegundos(texto);
+  return (DEF_EJERCICIO.get(nombre) || {}).descanso || 120;
 }
 
 /** Series por músculo en la semana que empieza el lunes indicado (principal 1, secundario ½) */
@@ -173,6 +161,7 @@ function seriesPorMusculo(lunesIso) {
         const m = MUSCULOS[ej.nombre];
         if (!m) continue;
         m.forEach((mus, i) => {
+          if (out[mus] === undefined) return;
           out[mus] += ej.series.length * (i === 0 ? 1 : 0.5);
           detalle[mus][i === 0 ? 'principal' : 'secundario'] += ej.series.length;
         });
@@ -240,8 +229,9 @@ function estadisticas() {
   return { semana, esteMes, racha, total: sesiones.length, volumenSemana };
 }
 
-/** Sesión que toca según la rotación Empuje → Tirón → Pierna → Fullbody */
+/** Sesión que toca según la rotación de la rutina (null si no hay rutina) */
 function siguienteSesion() {
+  if (!ORDEN_SESIONES.length) return null;
   const u = indice().ultimaSesion;
   let ultima = null;
   for (const s of ORDEN_SESIONES) {
