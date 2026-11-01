@@ -27,8 +27,8 @@
 - [x] 19. Recordatorio por email tras 7 días sin entrenar.
 - [x] Migración probada en local con los datos reales (169 series, 185 sesiones).
 - [x] Página de instalación (URL de la aplicación web), por si el menú de la hoja no aparece.
-- [ ] Instalación en el Drive de Edu, migración y desactivar el script antiguo.
-- [ ] Publicar la v8 en `main` (solo después de la migración).
+- [x] Instalación en el Drive de Edu, migración y desactivar el script antiguo.
+- [x] Publicar la v8 en `main` (solo después de la migración).
 
 ### Fase C — Entrenamiento
 - [ ] 8. Detector de estancamiento (3 sesiones sin mejorar la mejor marca).
