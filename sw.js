@@ -1,7 +1,7 @@
 // Service worker: guarda la app en el móvil para que funcione sin internet.
 // IMPORTANTE: cada vez que cambies algún archivo de la app, sube el número de VERSION
 // para que el móvil descargue la nueva versión.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = 'edux-' + VERSION;
 const ARCHIVOS = [
   './',
@@ -12,6 +12,7 @@ const ARCHIVOS = [
   'datos.js',
   'red.js',
   'grafico.js',
+  'cuerpo.js',
   'descanso.js',
   'sesion.js',
   'vistas.js',
@@ -19,7 +20,14 @@ const ARCHIVOS = [
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'icons/icon-maskable-512.png'
+  'icons/icon-maskable-512.png',
+  'fuentes/barlow-400.woff2',
+  'fuentes/barlow-500.woff2',
+  'fuentes/barlow-600.woff2',
+  'fuentes/barlow-700.woff2',
+  'fuentes/barlow-condensed-600.woff2',
+  'fuentes/barlow-condensed-700.woff2',
+  'fuentes/barlow-condensed-800.woff2'
 ];
 
 self.addEventListener('install', (e) => {

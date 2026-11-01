@@ -6,7 +6,7 @@
  *   Pantallas: sesion · resumen (sesion.js) · records (vistas.js)
  * ===================================================================== */
 
-const VERSION_APP = 'v5';
+const VERSION_APP = 'v6';
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
 
 let vistaActual = 'inicio';
@@ -18,9 +18,12 @@ const ORDEN_EJ = ORDEN_EJ_DATOS;
 
 /* ===================== Utilidades de interfaz ===================== */
 
+const ICONO_AVISO = { ok: 'check', error: 'alerta', atencion: 'alerta', info: 'info', record: 'trofeo' };
+
 function aviso(texto, tipo = 'info', segundos = 5) {
   const el = $('#toast');
-  el.textContent = texto;
+  const limpio = String(texto).replace(/^(✓|✗|🏆|💪)\s*/u, '');
+  el.innerHTML = ico(ICONO_AVISO[tipo] || 'info') + `<span>${esc(limpio)}</span>`;
   el.className = 'toast ' + tipo;
   el.hidden = false;
   clearTimeout(aviso._t);
@@ -53,8 +56,8 @@ function reloj(ms) {
 
 function barra(html) { $('#barra').innerHTML = html; }
 
-const BTN_ATRAS = `<button class="icono" data-accion="atras" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>`;
-const BTN_REFRESCAR = `<button class="icono" data-accion="actualizar" aria-label="Actualizar datos"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>`;
+const BTN_ATRAS = `<button class="icono" data-accion="atras" aria-label="Volver">${ico('atras')}</button>`;
+const BTN_REFRESCAR = `<button class="icono" data-accion="actualizar" aria-label="Actualizar datos">${ico('refrescar')}</button>`;
 
 /* ===================== Navegación ===================== */
 
@@ -125,63 +128,77 @@ function vistaInicio() {
   const fecha = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1);
   const sig = siguienteSesion();
 
-  let html = `<div class="saludo"><h2>${saludo}${nombre ? ', ' + esc(nombre) : ''}</h2><p>${esc(fecha)}</p></div>`;
+  let html = `<div class="saludo"><p>${esc(fecha)}</p><h2>${saludo}${nombre ? `, <em>${esc(nombre)}</em>` : ''}</h2></div>`;
 
   if (!configCompleta()) {
-    html += `<div class="tarjeta alerta">Falta conectar la app con tu hoja. <button class="enlace" data-tab="ajustes">Ir a Ajustes</button></div>`;
+    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>Falta conectar la app con tu hoja. <button class="enlace" data-tab="ajustes">Ir a Ajustes</button></div></div>`;
   }
 
-  // Hero: sesión en curso o siguiente entreno
+  // Tarjeta principal: sesión en curso o siguiente entreno, con el mapa muscular
+  const nombreHero = actual ? actual.sesion : sig;
+  let datosHero, botones;
   if (actual) {
     const { hechas, total } = progresoSesion(actual);
-    html += `
-      <section class="hero">
-        <div class="hero-etiqueta">SESIÓN EN CURSO</div>
-        <div class="hero-nombre">${esc(actual.sesion)}</div>
-        <div class="hero-grupos">${esc(INFO_SESION[actual.sesion].grupos)}</div>
-        <div class="hero-datos">
-          <div><b>${hechas}/${total}</b>series</div>
-          <div><b>${duracionTxt(Date.now() - new Date(actual.inicio).getTime())}</b>en marcha</div>
-        </div>
-        <div class="fila-botones">
-          <button class="btn blanco" data-accion="continuar">Continuar</button>
-          <button class="btn fantasma" data-accion="descartar">Descartar</button>
-        </div>
-      </section>`;
+    datosHero = `<div><b>${hechas}/${total}</b>series</div><div><b>${esc(duracionTxt(Date.now() - new Date(actual.inicio).getTime()).replace(' min', '′'))}</b>en marcha</div>`;
+    botones = `<button class="btn blanco" data-accion="continuar">${ico('play', 'relleno')}Continuar</button>
+               <button class="btn fantasma" data-accion="descartar">Descartar</button>`;
   } else {
     const ejs = RUTINA[sig];
-    html += `
-      <section class="hero">
-        <div class="hero-etiqueta">SIGUIENTE ENTRENO</div>
-        <div class="hero-nombre">${esc(sig)}</div>
-        <div class="hero-grupos">${esc(INFO_SESION[sig].grupos)}</div>
-        <div class="hero-datos">
-          <div><b>${ejs.length}</b>ejercicios</div>
-          <div><b>${ejs.reduce((a, e) => a + e.series, 0)}</b>series</div>
-          <div><b>≈ ${minutosEstimados(sig)}</b>min</div>
-        </div>
-        <div class="fila-botones"><button class="btn blanco ancho" data-accion="empezar" data-sesion="${esc(sig)}">Empezar entreno</button></div>
-      </section>`;
+    datosHero = `<div><b>${ejs.length}</b>ejercicios</div><div><b>${ejs.reduce((a, e) => a + e.series, 0)}</b>series</div><div><b>${minutosEstimados(sig)}′</b>aprox.</div>`;
+    botones = `<button class="btn blanco ancho" data-accion="empezar" data-sesion="${esc(sig)}">${ico('play', 'relleno')}Empezar entreno</button>`;
   }
+  html += `
+    <section class="hero">
+      <div class="hero-cuerpo">
+        <div>
+          <div class="hero-etiqueta">${actual ? 'SESIÓN EN CURSO' : 'SIGUIENTE ENTRENO'}</div>
+          <div class="hero-nombre">${esc(nombreHero)}</div>
+          <div class="hero-grupos">${esc(INFO_SESION[nombreHero].grupos)}</div>
+          <div class="hero-datos">${datosHero}</div>
+        </div>
+        ${cuerpoSVG(intensidadSesion(nombreHero), { etiquetas: false })}
+      </div>
+      <div class="fila-botones">${botones}</div>
+    </section>`;
 
   // Pendientes
   if (pendientes.length) {
-    html += `<div class="tarjeta atencion" style="margin-top:12px"><strong>Pendientes de enviar (${pendientes.length})</strong><ul class="lista-pendientes">`;
+    html += `<div class="tarjeta atencion" style="margin-top:12px"><div class="pendientes-cab">${ico('subir')}Pendientes de enviar (${pendientes.length})</div><ul class="lista-pendientes">`;
     for (const p of pendientes) {
       const n = p.ejercicios.reduce((a, e) => a + e.series.length, 0);
       html += `<li><span>${esc(fechaMedia(p.fecha))} · ${esc(p.sesion)} · ${n} series</span>
-        <button class="icono" data-accion="borrar-pendiente" data-id="${esc(p.id)}" aria-label="Descartar">✕</button></li>`;
+        <button class="icono plano" data-accion="borrar-pendiente" data-id="${esc(p.id)}" aria-label="Descartar">${ico('x')}</button></li>`;
     }
-    html += `</ul><button class="btn primario ancho" style="margin-top:10px" data-accion="enviar">Enviar ahora</button></div>`;
+    html += `</ul><button class="btn primario ancho" style="margin-top:10px" data-accion="enviar">${ico('subir')}Enviar ahora</button></div>`;
   }
 
-  // Estadísticas
+  // Tu semana
+  const lunes = lunesDe(new Date());
+  const hoyIso = hoy();
+  let dias = '';
+  ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach((letra, i) => {
+    const d = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + i);
+    const iso = aISO(d);
+    const dia = idx.dias.get(iso);
+    const cls = ['semana-dia'];
+    if (dia) cls.push([...dia.sesiones.values()].every((s) => s.pendiente) ? 'pendiente' : 'hecho');
+    if (iso === hoyIso) cls.push('hoy');
+    if (iso > hoyIso) cls.push('futuro');
+    const etiqueta = dia ? `${fechaMedia(iso)}: ${[...dia.sesiones.keys()].join(', ')}` : fechaMedia(iso);
+    dias += `<div class="${cls.join(' ')}" aria-label="${esc(etiqueta)}"><span>${letra}</span><i>${d.getDate()}</i></div>`;
+  });
   html += `<div class="seccion-titulo">Tu actividad</div>
-    <div class="stats">
-      <div class="stat"><div class="stat-etiqueta">Esta semana</div><div class="stat-valor">${est.semana}<small>${est.semana === 1 ? 'sesión' : 'sesiones'}</small></div><div class="stat-pie">de lunes a domingo</div></div>
-      <div class="stat"><div class="stat-etiqueta">Racha</div><div class="stat-valor">${est.racha}<small>${est.racha === 1 ? 'semana' : 'semanas'}</small></div><div class="stat-pie">seguidas entrenando</div></div>
-      <div class="stat"><div class="stat-etiqueta">Este mes</div><div class="stat-valor">${est.esteMes}<small>${est.esteMes === 1 ? 'sesión' : 'sesiones'}</small></div><div class="stat-pie">${est.total} en total</div></div>
-      <div class="stat"><div class="stat-etiqueta">Volumen semanal</div><div class="stat-valor">${volumenTxt(est.volumenSemana).replace(/ (kg|t)$/, '<small>$1</small>')}</div><div class="stat-pie">kg × reps</div></div>
+    <div class="tarjeta">
+      <div class="semana-cab">
+        <div><div class="etiqueta">Esta semana</div><b>${est.semana} ${est.semana === 1 ? 'sesión' : 'sesiones'}</b></div>
+        <span class="racha" title="Semanas seguidas entrenando">${ico('llama')}${est.racha} ${est.racha === 1 ? 'semana' : 'semanas'}</span>
+      </div>
+      <div class="semana">${dias}</div>
+    </div>
+    <div class="stats tres">
+      <div class="stat"><div class="stat-etiqueta">Este mes</div><div class="stat-valor">${est.esteMes}</div><div class="stat-pie">${est.esteMes === 1 ? 'sesión' : 'sesiones'}</div></div>
+      <div class="stat"><div class="stat-etiqueta">Total</div><div class="stat-valor">${est.total}</div><div class="stat-pie">sesiones</div></div>
+      <div class="stat"><div class="stat-etiqueta">Volumen</div><div class="stat-valor">${volumenTxt(est.volumenSemana).replace(/ (kg|t)$/, '<small>$1</small>')}</div><div class="stat-pie">esta semana</div></div>
     </div>`;
 
   // Sesiones
@@ -189,12 +206,16 @@ function vistaInicio() {
   for (const nombreSes of ORDEN_SESIONES) {
     const ejs = RUTINA[nombreSes];
     const u = idx.ultimaSesion[nombreSes];
+    const esSig = !actual && nombreSes === sig;
     html += `
-      <button class="tarjeta-sesion ${!actual && nombreSes === sig ? 'siguiente' : ''}" data-accion="empezar" data-sesion="${esc(nombreSes)}">
-        <span class="letra">${INFO_SESION[nombreSes].letra}</span>
-        <span class="nombre">${esc(nombreSes)}</span>
-        <span class="grupos">${esc(INFO_SESION[nombreSes].grupos)}</span>
-        <span class="pie">${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series, 0)} series<br>${u ? 'Última: ' + haceDias(u) : 'Sin registros'}</span>
+      <button class="tarjeta-sesion ${esSig ? 'siguiente' : ''}" data-accion="empezar" data-sesion="${esc(nombreSes)}">
+        ${cuerpoSVG(intensidadSesion(nombreSes), { etiquetas: false })}
+        <span>
+          <span class="nombre">${esc(nombreSes)}${esSig ? '<span class="etiqueta-sig">TOCA</span>' : ''}</span>
+          <span class="grupos">${esc(INFO_SESION[nombreSes].grupos)}</span>
+          <span class="pie">${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series, 0)} series</span>
+        </span>
+        <span class="lado">${u ? esc(haceDias(u)) : 'Sin registros'}${ico('sig')}</span>
       </button>`;
   }
   html += '</div>';

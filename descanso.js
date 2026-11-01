@@ -87,7 +87,8 @@ const Descanso = {
     caja.querySelector('.descanso-etiqueta').textContent = this.terminado ? '¡A por la siguiente serie!' : 'Descanso';
     const mm = Math.floor(restante / 60), ss = String(restante % 60).padStart(2, '0');
     caja.querySelector('.descanso-tiempo').textContent = `${mm}:${ss}`;
-    caja.querySelector('.descanso-relleno').style.width = `${(restante / this.total) * 100}%`;
+    const pct = Math.max(0, Math.min(100, (restante / this.total) * 100));
+    caja.querySelector('.arco').style.strokeDasharray = `${pct} 100`;
   },
 
   avisar() {

@@ -191,13 +191,14 @@ function terminarSesion() {
 function vistaSesion() {
   const actual = leer(K.actual, null);
   if (!actual) return render('inicio');
-  barra(`${BTN_ATRAS}<div class="titulo-sesion"><b>${esc(actual.sesion)}</b><span id="reloj"></span></div>`);
+  barra(`${BTN_ATRAS}<div class="titulo-sesion"><b>${esc(actual.sesion)}</b><span id="reloj"></span></div>
+    <div class="anillo" aria-hidden="true"><svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" class="pista"/><circle cx="23" cy="23" r="19" class="arco" pathLength="100" stroke-dasharray="0 100"/></svg><b id="anillo-n">0</b></div>`);
 
   const rutina = RUTINA[actual.sesion];
   const idxActual = rutina.findIndex((ej) => !ejercicioCompleto(actual.datos[ej.nombre]));
 
   let html = `
-    <div class="fecha-sesion">
+    <div class="cab-sesion">
       <span>${esc(INFO_SESION[actual.sesion].grupos)}</span>
       <input type="date" id="fecha-sesion" value="${esc(actual.fecha)}" max="${hoy()}" aria-label="Fecha de la sesión">
     </div>`;
@@ -215,8 +216,8 @@ function opcionesSustituto(actual, ej, d) {
     usados.add(e.nombre);
     if (actual.datos[e.nombre].sustituto) usados.add(actual.datos[e.nombre].sustituto);
   }
-  let html = `<option value="">⇄ Sustituir</option>`;
-  if (d.sustituto) html += `<option value="__original">↩ Volver a ${esc(ej.nombre)}</option>`;
+  let html = `<option value="">Sustituir</option>`;
+  if (d.sustituto) html += `<option value="__original">Volver a ${esc(ej.nombre)}</option>`;
   for (const s of ORDEN_SESIONES) {
     const lista = RUTINA[s].filter((x) => !usados.has(x.nombre));
     if (!lista.length) continue;
@@ -240,53 +241,57 @@ function tarjetaEjercicio(actual, ej, i, idxActual) {
   let html = `
     <section class="${clases}" data-ej="${i}" id="ej-${i}">
       <button class="ej-cabecera" data-accion="plegar">
-        <span class="ej-num">${completo ? '✓' : i + 1}</span>
+        <span class="ej-num">${completo ? ico('check') : i + 1}</span>
         <span class="ej-titulo">
           <b>${esc(nombre)}</b>
-          <span>${d.series.length} series · descanso ${mmss(descansoDe(nombre))}<span class="ej-tiempo" data-ej="${i}"></span></span>
-          ${d.sustituto ? `<span class="ej-sustituto">en lugar de ${esc(ej.nombre)}</span>` : ''}
+          ${d.sustituto ? `<span class="ej-sustituto">${ico('cambiar', 's')}en lugar de ${esc(ej.nombre)}</span>` : ''}
+          <span class="meta">
+            <span>${ico('pesa')}${d.series.length} series</span>
+            <span class="ej-descanso">${ico('reloj')}${mmss(descansoDe(nombre))} descanso</span>
+            <span class="ej-tiempo" data-ej="${i}"></span>
+          </span>
           <span class="ej-resumen">${esc(resumen)}</span>
         </span>
-        <span class="ej-chevron">⌄</span>
+        <span class="ej-chevron">${ico('abajo')}</span>
       </button>
       <div class="ej-cuerpo">
-        <div class="ultimo">${u
-          ? `<b>Última · ${esc(fechaCorta(u.fecha))}</b><span>${esc(seriesTxt(u.series))}</span>`
-          : '<b>Primera vez</b><span>Sin registros anteriores</span>'}</div>
-        <div class="serie-cab"><span>kg</span><span>reps</span><span></span></div>`;
+        <div class="ultimo">${ico('anterior')}${u
+          ? `<b>${esc(fechaCorta(u.fecha))}</b><span>${esc(seriesTxt(u.series))}</span>`
+          : '<b>Primera vez</b><span>sin registros anteriores</span>'}</div>
+        <div class="serie-cab"><span>Serie</span><span>Kg</span><span>Reps</span><span></span></div>`;
 
   d.series.forEach((s, iS) => {
     const ref = u && u.series.find((x) => x.serie === iS + 1);
     const extra = iS >= ej.series;
     html += `
         <div class="serie ${claseSerie(nombre, s)}" data-serie="${iS}">
-          <div class="serie-info">
-            <span><b>Serie ${iS + 1}</b>${extra ? ' <span class="etiqueta-extra">extra</span>' : ''} · objetivo ${esc(objetivo(ej, iS))} reps</span>
-            <span class="pr">🏆 Récord</span>
-            ${extra && !s.hecha ? `<button class="quitar" data-accion="quitar-serie" aria-label="Quitar serie extra">✕</button>` : ''}
-          </div>
           <div class="serie-fila">
+            <div class="serie-n" title="Objetivo: ${esc(objetivo(ej, iS))} reps">
+              <b>${iS + 1}</b><span class="pr">${ico('trofeo')}</span>
+              ${extra ? '<span class="etiqueta-extra">extra</span>' : `<small>${esc(objetivo(ej, iS))}</small>`}
+            </div>
             <div class="paso">
-              <button data-accion="menos" data-campo="peso" aria-label="Menos peso">−</button>
+              <button data-accion="menos" data-campo="peso" aria-label="Menos peso">${ico('menos')}</button>
               <input class="num" data-campo="peso" inputmode="decimal" enterkeyhint="next" autocomplete="off"
                      value="${esc(s.peso)}" placeholder="${ref ? esc(num(ref.peso)) : 'kg'}" aria-label="Peso serie ${iS + 1}">
-              <button data-accion="mas" data-campo="peso" aria-label="Más peso">+</button>
+              <button data-accion="mas" data-campo="peso" aria-label="Más peso">${ico('mas')}</button>
             </div>
             <div class="paso">
-              <button data-accion="menos" data-campo="reps" aria-label="Menos reps">−</button>
+              <button data-accion="menos" data-campo="reps" aria-label="Menos reps">${ico('menos')}</button>
               <input class="num" data-campo="reps" inputmode="numeric" enterkeyhint="next" autocomplete="off"
                      value="${esc(s.reps)}" placeholder="${ref ? esc(ref.reps) : 'reps'}" aria-label="Reps serie ${iS + 1}">
-              <button data-accion="mas" data-campo="reps" aria-label="Más reps">+</button>
+              <button data-accion="mas" data-campo="reps" aria-label="Más reps">${ico('mas')}</button>
             </div>
-            <button class="check" data-accion="check" aria-label="Marcar serie ${iS + 1} como hecha">✓</button>
+            <button class="check" data-accion="check" aria-label="Marcar serie ${iS + 1} como hecha">${ico('check')}</button>
           </div>
+          ${extra && !s.hecha ? `<button class="quitar" data-accion="quitar-serie" aria-label="Quitar serie extra">${ico('x')}</button>` : ''}
         </div>`;
   });
 
   html += `
-        <textarea class="nota" data-campo="nota" rows="1" placeholder="Nota del ejercicio (opcional)">${esc(d.nota)}</textarea>
+        <div class="nota-caja">${ico('nota')}<textarea class="nota" data-campo="nota" rows="1" placeholder="Nota del ejercicio (opcional)">${esc(d.nota)}</textarea></div>
         <div class="ej-acciones">
-          <button class="chip" data-accion="anadir-serie" ${d.series.length >= MAX_SERIES ? 'disabled' : ''}>+ Serie</button>
+          <button class="chip" data-accion="anadir-serie" ${d.series.length >= MAX_SERIES ? 'disabled' : ''}>${ico('mas')}Serie</button>
           <select class="chip chip-select" data-sustituir aria-label="Sustituir ejercicio">${opcionesSustituto(actual, ej, d)}</select>
         </div>
       </div>
@@ -303,21 +308,27 @@ function claseSerie(nombre, s) {
   return cls.join(' ');
 }
 
-/** Cada segundo: reloj de la sesión, progreso y tiempo de cada ejercicio */
+/** Cada segundo: reloj de la sesión, anillo de progreso y tiempo de cada ejercicio */
 function actualizarCabeceraSesion() {
   const actual = leer(K.actual, null);
   if (!actual || vistaActual !== 'sesion') return;
   const { hechas, total } = progresoSesion(actual);
+  const pct = total ? (hechas / total) * 100 : 0;
   const el = $('#reloj');
   if (el) el.textContent = `${reloj(Date.now() - new Date(actual.inicio).getTime())} · ${hechas}/${total} series`;
-  $('#progreso-sesion .relleno').style.width = `${total ? (hechas / total) * 100 : 0}%`;
+  const arco = $('.anillo .arco');
+  if (arco) arco.setAttribute('stroke-dasharray', `${pct} 100`);
+  const n = $('#anillo-n');
+  if (n) n.textContent = hechas;
+  $('#progreso-sesion .relleno').style.width = `${pct}%`;
   RUTINA[actual.sesion].forEach((ej, i) => {
     const d = actual.datos[ej.nombre];
     const t = document.querySelector(`.ej-tiempo[data-ej="${i}"]`);
     if (!t) return;
-    if (!d.inicio) { t.textContent = ''; return; }
+    if (!d.inicio) { t.innerHTML = ''; return; }
     const fin = ejercicioCompleto(d) && d.fin ? d.fin : Date.now();
-    t.textContent = ` · ⏱ ${Math.floor((fin - d.inicio) / 60000)} min`;
+    const txt = `${Math.floor((fin - d.inicio) / 60000)} min`;
+    if (t.dataset.txt !== txt) { t.dataset.txt = txt; t.innerHTML = `${ico('temporizador')}${txt}`; }
   });
 }
 
@@ -392,12 +403,12 @@ function marcarSerie(el) {
   }
   guardar(K.actual, c.actual);
 
-  // Posición del ✓ para la animación (antes de re-pintar)
+  // Posición del botón para la animación (antes de re-pintar)
   const caja = el.getBoundingClientRect();
 
   const { hechas, total } = progresoSesion(c.actual);
   if (s.hecha && hechas < total) Descanso.iniciar(descansoDe(c.nombre));
-  if (s.hecha && hechas === total) { Descanso.parar(); aviso('💪 ¡Sesión completa! Pulsa "Terminar sesión"', 'ok', 6); }
+  if (s.hecha && hechas === total) { Descanso.parar(); aviso('¡Sesión completa! Pulsa "Terminar sesión"', 'ok', 6); }
 
   if (s.hecha && ejercicioCompleto(c.d)) {
     // Ejercicio terminado: se pliega y se pasa al siguiente sin terminar
@@ -413,13 +424,13 @@ function marcarSerie(el) {
 
   if (record) {
     celebrar(caja.left + caja.width / 2, caja.top + caja.height / 2);
-    aviso(`🏆 ¡Récord en ${c.nombre}! ${textoRecord(c.nombre, s)}`, 'ok', 5);
+    aviso(`¡Récord en ${c.nombre}! ${textoRecord(c.nombre, s)}`, 'record', 5);
     const fila = document.querySelector(`#ej-${c.iEj} .serie[data-serie="${c.iS}"] .pr`);
     if (fila) fila.classList.add('pop');
   }
 }
 
-/** Animación de récord: confeti morado y dorado desde el botón ✓ */
+/** Animación de récord: confeti morado y dorado desde el botón de serie hecha */
 function celebrar(x, y) {
   vibrar([60, 40, 60, 40, 200]);
   const capa = document.createElement('div');
@@ -441,7 +452,7 @@ function celebrar(x, y) {
   }
   const trofeo = document.createElement('div');
   trofeo.className = 'trofeo';
-  trofeo.textContent = '🏆';
+  trofeo.innerHTML = ico('trofeo');
   trofeo.style.left = x + 'px';
   trofeo.style.top = y + 'px';
   capa.appendChild(trofeo);
@@ -523,6 +534,12 @@ function sesionAnterior(nombreSesion) {
   return { fecha: ultima.fecha, volumen };
 }
 
+/** Duración compacta para cifras grandes: 52′ · 1h 05′ */
+function duracionCorta(ms) {
+  const min = Math.max(0, Math.floor(ms / 60000));
+  return min < 60 ? `${min}′` : `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}′`;
+}
+
 function vistaResumen() {
   const actual = leer(K.actual, null);
   if (!actual) return render('inicio');
@@ -531,38 +548,44 @@ function vistaResumen() {
   const ant = sesionAnterior(actual.sesion);
   const minutosPorEj = new Map(sesion.tiempos.map((t) => [t.ejercicio, t.minutos]));
 
-  let html = `<div class="tarjeta">
-    <div class="hero-etiqueta" style="color:var(--morado-claro)">${esc(fechaMedia(actual.fecha)).toUpperCase()}</div>
-    <div style="font-size:1.6rem;font-weight:900;text-transform:uppercase;margin-top:2px">${esc(actual.sesion)}</div>
+  let html = `<section class="resumen-hero">
+    <div class="hero-etiqueta">${esc(fechaMedia(actual.fecha)).toUpperCase()}</div>
+    <div class="hero-nombre">${esc(actual.sesion)}</div>
+    <div class="hero-grupos">${esc(INFO_SESION[actual.sesion].grupos)}</div>
     <div class="resumen-cifras">
       <div><b>${totalSeries}</b><span>series</span></div>
-      <div><b>${volumenTxt(volumen)}</b><span>volumen</span></div>
-      <div><b>${duracionTxt(Date.now() - new Date(actual.inicio).getTime())}</b><span>duración</span></div>
+      <div><b>${volumenTxt(volumen).replace(' ', '')}</b><span>volumen</span></div>
+      <div><b>${duracionCorta(Date.now() - new Date(actual.inicio).getTime())}</b><span>duración</span></div>
     </div>`;
   if (ant && ant.volumen > 0) {
     const pct = Math.round(((volumen - ant.volumen) / ant.volumen) * 100);
     const clase = pct > 0 ? 'sube' : pct < 0 ? 'baja' : 'igual';
-    html += `<div class="comparativa ${clase}">${pct > 0 ? '↑ +' : pct < 0 ? '↓ −' : '= '}${Math.abs(pct)} % de volumen frente a tu último ${esc(actual.sesion)} (${esc(fechaCorta(ant.fecha))})</div>`;
+    html += `<div class="comparativa ${clase}">${ico('progreso', 's')}${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)} % de volumen frente a tu último ${esc(actual.sesion)} (${esc(fechaCorta(ant.fecha))})</div>`;
   }
+  html += '</section>';
+
   if (records.length) {
-    html += `<div class="resumen-records"><b>🏆 ${records.length} ${records.length === 1 ? 'récord personal' : 'récords personales'}</b>
-      ${records.map((x) => `<div>${esc(x.ejercicio)}: ${esc(x.txt)}</div>`).join('')}</div>`;
+    html += `<div class="seccion-titulo">${records.length} ${records.length === 1 ? 'récord personal' : 'récords personales'}</div>
+      <div class="tarjeta resumen-records">${records.map((x) => `
+        <div class="record">
+          <div class="record-icono">${ico('trofeo')}</div>
+          <div class="record-txt"><b>${esc(x.ejercicio)}</b><span>${esc(x.txt)}</span></div>
+        </div>`).join('')}</div>`;
   }
   if (sesion.ejercicios.length) {
-    html += '<ul class="lista-resumen" style="margin-top:14px">';
+    html += `<div class="seccion-titulo">Ejercicios</div><div class="tarjeta"><ul class="lista-resumen">`;
     for (const ej of sesion.ejercicios) {
       const cmp = compararEjercicio(ej);
       const min = minutosPorEj.get(ej.nombre);
       html += `<li>
         <div class="resumen-ej-cab"><strong>${esc(ej.nombre)}</strong><span class="delta ${cmp.clase}">${esc(cmp.txt)}</span></div>
         <div class="series-txt">${esc(ej.series.map((s) => `${num(s.peso)} kg × ${s.reps}`).join(' · '))}</div>
-        ${min !== undefined ? `<div class="tenue">⏱ ${minTxt(min)}</div>` : ''}
+        ${min !== undefined ? `<div class="meta" style="margin-top:4px"><span>${ico('temporizador')}${minTxt(min)}</span></div>` : ''}
         ${ej.nota ? `<em class="tenue">${esc(ej.nota)}</em>` : ''}
       </li>`;
     }
-    html += '</ul>';
+    html += '</ul></div>';
   }
-  html += '</div>';
 
   if (problemas.length) html += `<div class="tarjeta alerta"><strong>Corrige antes de terminar:</strong><ul>${problemas.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>`;
   if (avisos.length) html += `<div class="tarjeta atencion"><ul style="margin:0">${avisos.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>`;
@@ -570,9 +593,9 @@ function vistaResumen() {
 
   const puede = !problemas.length && totalSeries > 0;
   html += `
-    <div class="fila-botones">
+    <div class="fila-botones apilados">
+      <button class="btn primario" data-accion="confirmar" ${puede ? '' : 'disabled'}>${ico('subir')}Guardar en la hoja</button>
       <button class="btn" data-accion="atras">Seguir editando</button>
-      <button class="btn primario" data-accion="confirmar" ${puede ? '' : 'disabled'}>Guardar en la hoja</button>
     </div>`;
   $('#vista').innerHTML = html;
 }

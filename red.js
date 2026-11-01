@@ -81,7 +81,7 @@ async function enviarPendientes({ silencioso = false } = {}) {
   if (error) {
     aviso(error.red ? 'No se pudo enviar (sin conexión). Queda pendiente.' : 'Error al enviar: ' + mensajeError(error), 'error', 10);
   } else if (enviadas) {
-    aviso(enviadas === 1 ? '✓ Sesión guardada en la hoja' : `✓ ${enviadas} sesiones guardadas en la hoja`, 'ok', 4);
+    aviso(enviadas === 1 ? 'Sesión guardada en la hoja' : `${enviadas} sesiones guardadas en la hoja`, 'ok', 4);
   }
   invalidarIndice();
   alCambiarDatos();
@@ -114,7 +114,7 @@ async function actualizarDatos({ silencioso = true } = {}) {
     });
     invalidarIndice();
     alCambiarDatos();
-    if (!silencioso) aviso('✓ Datos actualizados desde la hoja', 'ok', 3);
+    if (!silencioso) aviso('Datos actualizados desde la hoja', 'ok', 3);
     return true;
   }
   alCambiarDatos();

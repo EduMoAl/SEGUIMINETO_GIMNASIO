@@ -13,7 +13,9 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
 
 | Archivo | Qué es |
 |---|---|
-| `index.html`, `style.css` | Estructura y aspecto (negro y morado) |
+| `index.html`, `style.css` | Estructura, juego de iconos y sistema de diseño "Noche violeta" (negro y morado) |
+| `fuentes/` | Barlow y Barlow Condensed (licencia OFL), incluidas para funcionar sin internet |
+| `cuerpo.js` | Mapa del cuerpo en SVG (frente y espalda) para Inicio y Progreso |
 | `app.js` | Base: navegación, Inicio, eventos y arranque |
 | `sesion.js` | Entreno y resumen: series, sustitutos, series extra, tiempos, récords |
 | `vistas.js` | Historial, Progreso, Perfil, Récords y Ajustes |

@@ -6,7 +6,7 @@
  * ===================================================================== */
 
 const COLOR_SERIE = '#9b6cf6';   // validado sobre el fondo oscuro de las tarjetas
-const COLOR_SUPERFICIE = '#121018';
+const COLOR_SUPERFICIE = '#121019';
 
 /** Escala "bonita": ~4 marcas con pasos 1/2/2,5/5/10 */
 function escalaY(min, max) {
@@ -78,7 +78,9 @@ function dibujarGrafico(contenedor, puntos, { formato }) {
   if (puntos.length > 1) {
     const linea = xs.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join('');
     const base = m.t + alto;
-    svg += `<path d="${linea}L${xs[xs.length - 1].toFixed(1)},${base}L${xs[0].toFixed(1)},${base}Z" fill="${COLOR_SERIE}" fill-opacity=".10"/>`;
+    const idG = 'area-' + Math.random().toString(36).slice(2, 8);
+    svg += `<defs><linearGradient id="${idG}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${COLOR_SERIE}" stop-opacity=".16"/><stop offset="1" stop-color="${COLOR_SERIE}" stop-opacity="0"/></linearGradient></defs>`;
+    svg += `<path d="${linea}L${xs[xs.length - 1].toFixed(1)},${base}L${xs[0].toFixed(1)},${base}Z" fill="url(#${idG})"/>`;
     svg += `<path d="${linea}" fill="none" stroke="${COLOR_SERIE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   }
 

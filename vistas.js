@@ -10,8 +10,8 @@ const estProg = { modo: 'ejercicio', ejercicio: null, metrica: 'peso', rango: 't
 const estPerfil = { editando: false, pesando: false };
 let guardandoDescanso = false;
 
-const ICONO_ATRAS = '<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>';
-const ICONO_SIG = '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>';
+const ICONO_ATRAS = '<svg class="ico" aria-hidden="true"><use href="#i-atras"/></svg>';
+const ICONO_SIG = '<svg class="ico" aria-hidden="true"><use href="#i-sig"/></svg>';
 
 function ordenarEjercicios(lista) {
   return lista.sort((a, b) => (ORDEN_EJ.get(a.nombre) ?? 999) - (ORDEN_EJ.get(b.nombre) ?? 999));
@@ -80,25 +80,25 @@ function vistaHistorial() {
     <div><b>${seriesMes}</b><span>series</span></div>
     <div><b>${volumenTxt(volMes)}</b><span>volumen</span></div>
   </div>`;
-  if (minMes) html += `<div class="tenue" style="text-align:center;margin-top:8px">⏱ ${minTxt(minMes)} entrenando este mes</div>`;
+  if (minMes) html += `<div class="mes-tiempo">${ico('temporizador', 's')}${minTxt(minMes)} entrenando este mes</div>`;
 
   // Detalle del día
   html += `<div class="seccion-titulo">${estHist.dia ? esc(fechaMedia(estHist.dia)) : 'Detalle'}</div>`;
   const dia = estHist.dia && idx.dias.get(estHist.dia);
   if (!estHist.dia) {
-    html += `<div class="tarjeta vacio">No hay entrenos este mes.</div>`;
+    html += `<div class="tarjeta vacio">${ico('historial')}No hay entrenos este mes.</div>`;
   } else if (!dia) {
-    html += `<div class="tarjeta vacio">Sin entreno este día.</div>`;
+    html += `<div class="tarjeta vacio">${ico('historial')}Sin entreno este día.</div>`;
   } else {
     for (const s of dia.sesiones.values()) {
       const ejs = ordenarEjercicios([...s.ejercicios.values()]);
       const minSes = idx.tiempoSesion.get(`${estHist.dia}|${s.sesion}`);
       html += `<div class="tarjeta dia-sesion">
-        <h4><span class="letra" style="margin:0;width:28px;height:28px;font-size:.85rem">${esc((INFO_SESION[s.sesion] || { letra: '•' }).letra)}</span>${esc(s.sesion)}
+        <h4><span class="letra">${esc((INFO_SESION[s.sesion] || { letra: '•' }).letra)}</span>${esc(s.sesion)}
           ${s.pendiente ? '<span class="etiqueta-pend">pendiente</span>' : ''}</h4>
-        <div class="tenue" style="margin-bottom:6px">${s.soloAsistencia
-          ? `Asistencia registrada, sin series detalladas${minSes ? ` · ⏱ ${minTxt(minSes)}` : ''}`
-          : `${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series.length, 0)} series${minSes ? ` · ⏱ ${minTxt(minSes)}` : ''}`}</div>`;
+        <div class="meta" style="margin-bottom:6px">${s.soloAsistencia
+          ? `<span>${ico('info')}Asistencia registrada, sin series detalladas</span>`
+          : `<span>${ico('pesa')}${ejs.length} ejercicios · ${ejs.reduce((a, e) => a + e.series.length, 0)} series</span>`}${minSes ? `<span class="tiempo-dia">${ico('temporizador')}${minTxt(minSes)}</span>` : ''}</div>`;
       for (const ej of ejs) {
         const min = idx.tiempoDiaEj.get(`${estHist.dia}|${s.sesion}|${ej.nombre}`);
         html += `<div class="dia-ej"><b>${esc(ej.nombre)}${min !== undefined ? ` <span class="tenue">· ${minTxt(min)}</span>` : ''}</b>
@@ -160,8 +160,8 @@ const RANGOS = { '1m': 1, '3m': 3, '6m': 6, todo: null };
 function vistaProgreso() {
   barra(`<h1>Progreso</h1>${BTN_REFRESCAR}`);
   let html = `<div class="segmentado modos">
-    <button class="chip ${estProg.modo === 'ejercicio' ? 'activo' : ''}" data-accion="modo-prog" data-valor="ejercicio">Por ejercicio</button>
-    <button class="chip ${estProg.modo === 'musculo' ? 'activo' : ''}" data-accion="modo-prog" data-valor="musculo">Por músculo</button>
+    <button class="chip ${estProg.modo === 'ejercicio' ? 'activo' : ''}" data-accion="modo-prog" data-valor="ejercicio">${ico('pesa')}Por ejercicio</button>
+    <button class="chip ${estProg.modo === 'musculo' ? 'activo' : ''}" data-accion="modo-prog" data-valor="musculo">${ico('musculo')}Por músculo</button>
   </div>`;
   html += estProg.modo === 'musculo' ? htmlMusculos() : htmlEjercicio();
   $('#vista').innerHTML = html;
@@ -196,7 +196,7 @@ function htmlEjercicio() {
   html += '</select>';
 
   if (!lista.length) {
-    return html + `<div class="tarjeta vacio" style="margin-top:12px">Aún no hay registros de este ejercicio.<br>Aparecerán aquí cuando guardes una sesión en la hoja.</div>`;
+    return html + `<div class="tarjeta vacio" style="margin-top:12px">${ico('progreso')}Aún no hay registros de este ejercicio.<br>Aparecerán aquí cuando guardes una sesión en la hoja.</div>`;
   }
 
   const tiempos = idx.tiemposEj.get(nombre) || [];
@@ -222,7 +222,7 @@ function htmlEjercicio() {
         <div class="segmentado">${Object.keys(RANGOS).map((k) => `<button class="chip ${k === estProg.rango ? 'activo' : ''}" data-accion="rango" data-valor="${k}">${k === 'todo' ? 'Todo' : k.toUpperCase()}</button>`).join('')}</div>
       </div>
       <div class="tenue" style="margin-bottom:6px">${esc(met.titulo)}</div>
-      ${puntos.length ? '<div class="grafico" id="grafico"></div>' : '<div class="vacio">Sin registros en este periodo.</div>'}
+      ${puntos.length ? '<div class="grafico" id="grafico"></div>' : `<div class="vacio">${ico('progreso')}Sin registros en este periodo.</div>`}
       ${puntos.length === 1 ? '<div class="tenue" style="text-align:center;margin-top:6px">Con dos o más días verás la línea de evolución.</div>' : ''}
     </div>`;
   if (puntos.length) {
@@ -241,7 +241,7 @@ function htmlEjercicio() {
     html += `<tr>
       <td>${esc(fechaCorta(d.fecha))}${d.pendiente ? '<br><span class="etiqueta-pend">pend.</span>' : ''}</td>
       <td class="series-txt">${esc(seriesTxt(d.series))}${d.nota ? `<br><em class="tenue">${esc(d.nota)}</em>` : ''}</td>
-      <td class="num-col">${num(d.pesoMax)}${esPR ? ' 🏆' : ''}</td>
+      <td class="num-col">${esPR ? ico('trofeo') + ' ' : ''}${num(d.pesoMax)}</td>
       <td class="num-col">${num(d.rm1, 1)}</td></tr>`;
   }
   html += '</tbody></table></div>';
@@ -267,10 +267,12 @@ function htmlMusculos() {
   let html = `<div class="tarjeta">
     <div class="cal-cabecera">
       <button class="icono" data-accion="semana" data-delta="-1" aria-label="Semana anterior">${ICONO_ATRAS}</button>
-      <h3 style="text-transform:none">${esActual ? 'Esta semana' : `${esc(fechaCorta(lunes))} – ${esc(fechaCorta(domingo))}`}</h3>
+      <h3>${esActual ? 'Esta semana' : `${esc(fechaCorta(lunes))} – ${esc(fechaCorta(domingo))}`}</h3>
       <button class="icono" data-accion="semana" data-delta="1" aria-label="Semana siguiente" ${esActual ? 'disabled' : ''}>${ICONO_SIG}</button>
     </div>
-    <div class="tenue" style="margin-bottom:12px">Series por músculo · principal = 1, secundario = ½ · total ${num(total, 1)}</div>
+    <div class="musculos-mapa">${cuerpoSVG(Object.fromEntries(ORDEN_MUSCULOS.map((m) => [m, series[m] / maximo])))}</div>
+    <div class="escala"><span>Menos</span>${ESCALA_CUERPO.slice(1).map((c) => `<i style="background:${c}"></i>`).join('')}<span>Más series</span></div>
+    <div class="tenue" style="margin-bottom:10px">Series por músculo · principal = 1, secundario = ½ · total ${num(total, 1)}</div>
     <div class="barras">`;
   for (const m of ORDEN_MUSCULOS) {
     const v = series[m];
@@ -315,7 +317,7 @@ function vistaPerfil() {
   </div>`;
 
   if (!idx.perfil && !configCompleta()) {
-    html += `<div class="tarjeta alerta">Conecta la app con tu hoja en Ajustes para guardar tu perfil.</div>`;
+    html += `<div class="tarjeta alerta aviso-linea">${ico('enlace')}<div>Conecta la app con tu hoja en Ajustes para guardar tu perfil.</div></div>`;
   }
 
   html += `<div class="stats">
@@ -339,10 +341,10 @@ function vistaPerfil() {
     </div>
     <div class="fila-botones" style="margin-top:0">
       <button class="btn" data-accion="cancelar-peso">Cancelar</button>
-      <button class="btn primario" data-accion="guardar-peso">Guardar en la hoja</button>
+      <button class="btn primario" data-accion="guardar-peso">${ico('subir')}Guardar</button>
     </div>`;
   } else {
-    html += `<button class="btn ancho" style="margin-top:12px" data-accion="registrar-peso">Registrar peso</button>`;
+    html += `<button class="btn ancho" style="margin-top:14px" data-accion="registrar-peso">${ico('bascula')}Registrar peso</button>`;
   }
   html += `</div>`;
 
@@ -351,8 +353,8 @@ function vistaPerfil() {
   html += `<div class="seccion-titulo">Últimos récords</div><div class="tarjeta">`;
   html += ultimos.length
     ? ultimos.map(htmlRecord).join('')
-    : `<div class="tenue">Aún no has batido ningún récord. Aparecerán aquí cuando superes tus mejores marcas.</div>`;
-  html += `<button class="btn ancho" style="margin-top:12px" data-accion="ver-records">Ver todos los récords</button></div>`;
+    : `<div class="vacio">${ico('trofeo')}Aún no has batido ningún récord. Aparecerán aquí cuando superes tus mejores marcas.</div>`;
+  html += `<button class="btn ancho" style="margin-top:14px" data-accion="ver-records">${ico('trofeo')}Ver todos los récords</button></div>`;
 
   // Datos personales
   html += `<div class="seccion-titulo">Datos personales</div><div class="tarjeta">`;
@@ -363,16 +365,16 @@ function vistaPerfil() {
       <label class="campo">Altura (cm)<input id="pf-altura" inputmode="numeric" autocomplete="off" value="${p.altura ? esc(p.altura) : ''}"></label>
       <div class="fila-botones" style="margin-top:0">
         <button class="btn" data-accion="cancelar-perfil">Cancelar</button>
-        <button class="btn primario" data-accion="guardar-perfil">Guardar en la hoja</button>
+        <button class="btn primario" data-accion="guardar-perfil">${ico('subir')}Guardar</button>
       </div>`;
   } else {
     html += `
       <div class="info-fila"><span>Nombre</span><span>${esc(p.nombre || '—')}</span></div>
       <div class="info-fila"><span>Fecha de nacimiento</span><span>${p.nacimiento ? esc(p.nacimiento.split('-').reverse().join('/')) : '—'}</span></div>
       <div class="info-fila"><span>Altura</span><span>${p.altura ? num(p.altura, 0) + ' cm' : '—'}</span></div>
-      <button class="btn ancho" style="margin-top:12px" data-accion="editar-perfil">Editar datos</button>`;
+      <button class="btn ancho" style="margin-top:14px" data-accion="editar-perfil">${ico('nota')}Editar datos</button>`;
   }
-  html += `<p class="tenue" style="margin-bottom:0">Se guardan en la pestaña Perfil de tu hoja. Para editarlos necesitas internet.</p></div>`;
+  html += `<p class="tenue" style="margin:14px 0 0">Se guardan en la pestaña Perfil de tu hoja. Para editarlos necesitas internet.</p></div>`;
 
   $('#vista').innerHTML = html;
   const g = $('#grafico-peso');
@@ -383,7 +385,7 @@ function htmlRecord(r) {
   const tipo = r.tipo === 'peso' ? 'Peso' : '1RM est.';
   const dec = r.tipo === 'peso' ? 2 : 1;
   return `<div class="record">
-    <div class="record-icono">🏆</div>
+    <div class="record-icono">${ico('trofeo')}</div>
     <div class="record-txt">
       <b>${esc(r.ejercicio)}</b>
       <span>${tipo} ${esc(prTxt(r.valor, r.serie, dec))}</span>
@@ -407,7 +409,7 @@ function vistaRecords() {
     const filas = RUTINA[s].filter((ej) => idx.records.has(ej.nombre));
     if (!filas.length) continue;
     alguno = true;
-    html += `<div class="tarjeta"><div class="muro-sesion"><span class="letra" style="margin:0;width:26px;height:26px;font-size:.8rem">${INFO_SESION[s].letra}</span>${esc(s)}</div>`;
+    html += `<div class="tarjeta"><div class="muro-sesion"><span class="letra">${INFO_SESION[s].letra}</span>${esc(s)}</div>`;
     for (const ej of filas) {
       const r = idx.records.get(ej.nombre);
       html += `<div class="muro-fila">
@@ -420,13 +422,13 @@ function vistaRecords() {
     }
     html += '</div>';
   }
-  if (!alguno) html += `<div class="tarjeta vacio">Aún no hay registros.</div>`;
+  if (!alguno) html += `<div class="tarjeta vacio">${ico('trofeo')}Aún no hay registros.</div>`;
 
   // Línea de tiempo
   const hist = idx.historialRecords;
   html += `<div class="seccion-titulo">Récords batidos (${hist.length})</div>`;
   if (!hist.length) {
-    html += `<div class="tarjeta vacio">Cuando superes una marca anterior aparecerá aquí.</div>`;
+    html += `<div class="tarjeta vacio">${ico('trofeo')}Cuando superes una marca anterior aparecerá aquí.</div>`;
   } else {
     html += '<div class="tarjeta">';
     let fechaPrev = null;
@@ -453,15 +455,15 @@ function vistaAjustes() {
 
   let descansos = '';
   for (const s of ORDEN_SESIONES) {
-    descansos += `<div class="muro-sesion" style="margin-top:12px">${esc(s)}</div>`;
+    descansos += `<div class="muro-sesion" style="margin-top:16px"><span class="letra">${INFO_SESION[s].letra}</span>${esc(s)}</div>`;
     for (const ej of RUTINA[s]) {
       const seg = descansoDe(ej.nombre);
       descansos += `<div class="descanso-ajuste">
         <span>${esc(ej.nombre)}</span>
         <div class="paso paso-peq">
-          <button data-accion="descanso-ej" data-ej="${esc(ej.nombre)}" data-delta="-15" aria-label="Menos descanso" ${seg <= 15 || guardandoDescanso ? 'disabled' : ''}>−</button>
+          <button data-accion="descanso-ej" data-ej="${esc(ej.nombre)}" data-delta="-15" aria-label="Menos descanso" ${seg <= 15 || guardandoDescanso ? 'disabled' : ''}>${ico('menos')}</button>
           <b>${mmss(seg)}</b>
-          <button data-accion="descanso-ej" data-ej="${esc(ej.nombre)}" data-delta="15" aria-label="Más descanso" ${guardandoDescanso ? 'disabled' : ''}>+</button>
+          <button data-accion="descanso-ej" data-ej="${esc(ej.nombre)}" data-delta="15" aria-label="Más descanso" ${guardandoDescanso ? 'disabled' : ''}>${ico('mas')}</button>
         </div>
       </div>`;
     }
@@ -477,16 +479,16 @@ function vistaAjustes() {
         <input id="cfg-clave" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(c.clave || '')}">
       </label>
       <div class="fila-botones">
-        <button class="btn primario" data-accion="guardar-config">Guardar</button>
-        <button class="btn" data-accion="probar">Probar conexión</button>
+        <button class="btn primario" data-accion="guardar-config">${ico('check')}Guardar</button>
+        <button class="btn" data-accion="probar">${ico('enlace')}Probar</button>
       </div>
     </div>
 
     <div class="seccion-titulo">Aviso de fin de descanso</div>
     <div class="tarjeta">
-      <label class="interruptor"><span>Sonido</span><input type="checkbox" data-pref="sonido" ${pr.sonido ? 'checked' : ''}><i></i></label>
-      <label class="interruptor"><span>Vibración</span><input type="checkbox" data-pref="vibracion" ${pr.vibracion ? 'checked' : ''}><i></i></label>
-      <p class="tenue" style="margin-bottom:0">Se guardan solo en este móvil.</p>
+      <label class="interruptor">${ico('sonido')}<span>Sonido</span><input type="checkbox" data-pref="sonido" ${pr.sonido ? 'checked' : ''}><i></i></label>
+      <label class="interruptor">${ico('vibrar')}<span>Vibración</span><input type="checkbox" data-pref="vibracion" ${pr.vibracion ? 'checked' : ''}><i></i></label>
+      <p class="tenue" style="margin:10px 0 0">Se guardan solo en este móvil.</p>
     </div>
 
     <div class="seccion-titulo">Descansos por ejercicio</div>
@@ -500,8 +502,8 @@ function vistaAjustes() {
       <div class="info-fila"><span>Última descarga de la hoja</span><span>${esc(hace(cache.actualizado))}</span></div>
       <div class="info-fila"><span>Series en la hoja</span><span>${(cache.filas || []).length}</span></div>
       <div class="info-fila"><span>Sesiones pendientes de enviar</span><span>${pendientes.length}</span></div>
-      <button class="btn ancho" style="margin-top:12px" data-accion="actualizar-forzado">Actualizar datos ahora</button>
-      <p class="tenue" style="margin-bottom:0">La hoja de Google es la única fuente de datos. El móvil guarda una copia de solo lectura para usar la app sin internet.</p>
+      <button class="btn ancho" style="margin-top:14px" data-accion="actualizar-forzado">${ico('refrescar')}Actualizar datos ahora</button>
+      <p class="tenue" style="margin:14px 0 0">La hoja de Google es la única fuente de datos. El móvil guarda una copia de solo lectura para usar la app sin internet.</p>
     </div>
 
     <div class="seccion-titulo">Acerca de</div>
@@ -553,7 +555,7 @@ async function accionVistas(accion, b) {
       const fecha = $('#fecha-peso').value;
       if (!kg || Number.isNaN(kg) || kg < 30 || kg > 300) return aviso('Escribe un peso válido (kg)', 'error'), true;
       b.disabled = true;
-      if (await escribirEnHoja({ tipo: 'peso', fecha, peso: kg }, '✓ Peso guardado en la hoja')) estPerfil.pesando = false;
+      if (await escribirEnHoja({ tipo: 'peso', fecha, peso: kg }, 'Peso guardado en la hoja')) estPerfil.pesando = false;
       document.activeElement?.blur();
       repintar();
       return true;
@@ -565,7 +567,7 @@ async function accionVistas(accion, b) {
       const perfil = { nombre: $('#pf-nombre').value.trim(), nacimiento: $('#pf-nacimiento').value, altura: altura === '' ? '' : Number(altura) };
       if (perfil.altura !== '' && (!Number.isFinite(perfil.altura) || perfil.altura < 100 || perfil.altura > 250)) return aviso('La altura va en centímetros (por ejemplo 188)', 'error'), true;
       b.disabled = true;
-      if (await escribirEnHoja({ tipo: 'perfil', perfil }, '✓ Perfil guardado en la hoja')) estPerfil.editando = false;
+      if (await escribirEnHoja({ tipo: 'perfil', perfil }, 'Perfil guardado en la hoja')) estPerfil.editando = false;
       document.activeElement?.blur();
       repintar();
       return true;
@@ -581,7 +583,7 @@ async function accionVistas(accion, b) {
       if (!configCompleta()) return aviso('Rellena la URL y la clave', 'error'), true;
       aviso('Probando…', 'info', 0);
       const r = await llamarScript({ tipo: 'ping' });
-      aviso(r.ok ? '✓ ' + r.mensaje : '✗ ' + r.error, r.ok ? 'ok' : 'error', 8);
+      aviso(r.ok ? r.mensaje : r.error, r.ok ? 'ok' : 'error', 8);
       if (r.ok) actualizarDatos();
       return true;
     }
@@ -590,7 +592,7 @@ async function accionVistas(accion, b) {
       const seg = Math.max(15, descansoDe(nombre) + Number(b.dataset.delta));
       guardandoDescanso = true;
       repintar();
-      await escribirEnHoja({ tipo: 'descanso', ejercicio: nombre, segundos: seg }, `✓ ${nombre}: descanso ${mmss(seg)}`);
+      await escribirEnHoja({ tipo: 'descanso', ejercicio: nombre, segundos: seg }, `${nombre}: descanso ${mmss(seg)}`);
       guardandoDescanso = false;
       repintar();
       return true;

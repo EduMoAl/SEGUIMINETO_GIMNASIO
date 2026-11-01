@@ -58,6 +58,11 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
+/** Icono del juego de iconos de index.html: ico('check') */
+function ico(nombre, clase = '') {
+  return `<svg class="ico ${clase}" aria-hidden="true"><use href="#i-${nombre}"/></svg>`;
+}
+
 function esc(t) {
   return String(t ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
