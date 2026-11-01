@@ -1,59 +1,47 @@
-# Ideas y planes pendientes
+# Plan en curso
 
-## Multiusuario (amigos usando la app)
+## Decisiones (acordadas con Edu)
 
-**Decisión:** una hoja de cálculo por persona. La app (GitHub Pages) es la misma para todos;
-cada móvil guarda solo la URL y la clave de **su** hoja.
+1. **Script central** en el Drive de Edu para todos los usuarios (una URL; cada clave abre solo la hoja de su dueño).
+2. **Panel de usuarios dentro de la app** (Ajustes → Usuarios, visible solo para el administrador).
+3. **Hoja nueva para Edu**; la actual queda como copia de seguridad "(antigua)".
+4. **Músculos:** Pecho, Espalda, Hombro, Bíceps, Tríceps, Cuádriceps, Femoral, Glúteo, Aductores + **Abdomen, Gemelos, Antebrazo, Lumbar**.
+5. **Recordatorio:** email tras **7 días** sin entrenar (configurable por usuario en su Perfil), a las 18:00.
+6. **Calentamiento:** barra vacía × 10, 40 % × 8, 60 % × 5, 80 % × 3. Barra de 20 kg; discos de 25, 20, 15, 10, 5, 2,5 y 1,25 kg.
+7. **Los amigos solo usan la app**: no tienen acceso a su hoja.
 
-Las hojas de los amigos estarán en el Drive de Edu (cada una en su carpeta, p. ej. `EDUX/Nombre`).
-Consecuencias de que estén todas en la misma cuenta:
+## Fases
 
-- Los scripts de todas las hojas se ejecutan como Edu → comparten los límites diarios de
-  Apps Script de su cuenta (de sobra para unos pocos usuarios).
-- **El email semanal** hoy se envía al dueño de la hoja (`Session.getEffectiveUser()`):
-  con este esquema todos los resúmenes llegarían a Edu. Hay que añadir un campo `Email`
-  en la pestaña Perfil y enviar a esa dirección.
-- Los amigos no necesitan cuenta de Google para usar la app. Si quieren ver su hoja,
-  Edu puede compartírsela solo a ellos.
-- Edu puede ver los datos de todos: avisarles antes. Si alguno deja la app, se le
-  transfiere la propiedad de su hoja o se le da una copia.
-- Actualizar el script: como todos son de la misma cuenta, conviene una **biblioteca**
-  de Apps Script compartida; cada hoja solo tendría un script mínimo que la llama, y al
-  actualizar la biblioteca se actualizan todas.
+### Fase A — Calidad
+- [ ] 6. Pruebas automáticas en el repositorio (`tests/`, datos inventados) y en GitHub Actions.
+- [ ] 1. Aviso de versión nueva con botón "Actualizar".
+- [ ] 3. Deshacer (descartar sesión, quitar serie extra, sustituir ejercicio, borrar pendiente).
+- [ ] 5. Indicador "Sin conexión" y sesiones pendientes.
 
-### Cambios necesarios en la app y el script
+### Fase B — Multiusuario
+- [ ] Hoja nueva (la crea el script): Rutina (con músculos y material), Registro (con ID de sesión), Sesiones, Tiempos, Perfil (con email y recordatorio), Progreso con fórmulas.
+- [ ] Hoja de Administración (usuarios, claves, hoja de cada uno).
+- [ ] Script central: alta de usuarios, datos por clave, emails semanales y recordatorios para todos.
+- [ ] App: rutina leída de la hoja, sesiones dinámicas, conexión por enlace/QR, panel de usuarios.
+- [ ] 4. Descarga incremental (huella por sesión).
+- [ ] 19. Recordatorio por email tras 7 días sin entrenar.
+- [ ] Migración de los datos de Edu y desactivar el script antiguo.
 
-1. Leer la rutina de la pestaña `Rutina` de cada hoja (no de `rutina.js`).
-2. Columnas nuevas en `Rutina`: músculo principal y secundarios de cada ejercicio
-   (mapa muscular, series por músculo y email).
-3. Sesiones no fijas: nombres, rotación y letras del calendario salen de la hoja.
-4. Hoja plantilla limpia con el script incluido (Archivo → Hacer una copia).
-5. Configuración con un toque: enlace/QR con URL y clave en el fragmento `#` (no llega a ningún servidor).
-6. Aviso en la app cuando el script de una hoja esté desactualizado.
-7. Email semanal a la dirección del Perfil.
-8. En iPhone la app funciona, pero no vibra al acabar el descanso.
+### Fase C — Entrenamiento
+- [ ] 8. Detector de estancamiento (3 sesiones sin mejorar la mejor marca).
+- [ ] 11. Calculadora de discos y series de calentamiento (ejercicios con barra).
 
-## Mejoras propuestas (aún no elegidas)
+## Otras ideas (sin elegir)
 
-Recomendadas para la próxima tanda: 1, 2, 7, 12, 13.
-
-1. Aviso de versión nueva con botón "Actualizar".
-2. Corregir o borrar sesiones guardadas desde Historial.
-3. Deshacer (descartar sesión, quitar serie, desmarcar serie).
-4. Descarga incremental de datos (para cuando haya años de registros).
-5. Indicador de "sin conexión".
-6. Pruebas automáticas en GitHub Actions.
-7. Sugerencia de progresión (doble progresión).
-8. Detector de estancamiento.
-9. Superseries.
-10. Versión corta de una sesión.
-11. Calculadora de discos y series de calentamiento.
-12. Metas con predicción de fecha.
-13. Objetivo semanal de sesiones.
-14. Fuerza relativa (marca / peso corporal).
-15. Equilibrio muscular (empuje/tirón, cuádriceps/femoral).
-16. Tendencia de series por músculo a lo largo de meses.
-17. Medidas corporales en Perfil.
-18. Entrenos en Google Calendar.
-19. Recordatorio si no entrenas en X días.
+2. Corregir o borrar sesiones guardadas desde Historial ·
+7. Sugerencia de progresión ·
+9. Superseries ·
+10. Versión corta de una sesión ·
+12. Metas con predicción de fecha ·
+13. Objetivo semanal de sesiones ·
+14. Fuerza relativa ·
+15. Equilibrio muscular ·
+16. Tendencia de series por músculo ·
+17. Medidas corporales ·
+18. Entrenos en Google Calendar ·
 20. Resumen mensual por email.

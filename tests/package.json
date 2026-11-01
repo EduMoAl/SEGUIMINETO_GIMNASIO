@@ -1,0 +1,11 @@
+{
+  "name": "edux-training-pruebas",
+  "private": true,
+  "description": "Pruebas automáticas de EDUX TRAINING (no forman parte de la app)",
+  "scripts": {
+    "test": "node ejecutar.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
