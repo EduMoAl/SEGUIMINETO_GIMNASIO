@@ -55,6 +55,13 @@ function empezarSesion(nombre) {
   }
   Descanso.prepararAudio();
   navegar('sesion');
+  if (actual && actual.sesion !== nombre) {
+    avisoDeshacer(`Sesión de ${actual.sesion} descartada`, () => {
+      guardar(K.actual, actual);
+      abiertos = new Set(); cerrados = new Set();
+      render('sesion');
+    });
+  }
 }
 
 /** Nombre con el que se registra el ejercicio (el sustituto si lo hay) */
@@ -484,22 +491,22 @@ function anadirSerie(el) {
 function quitarSerie(el) {
   const c = contexto(el);
   if (!c || c.iS < c.ej.series) return;
+  const antes = JSON.parse(JSON.stringify(c.actual));
   c.d.series.splice(c.iS, 1);
   guardar(K.actual, c.actual);
   repintar();
+  avisoDeshacer('Serie extra quitada', () => { guardar(K.actual, antes); repintar(); });
 }
 
 function sustituir(sel) {
   const c = contexto(sel);
   if (!c || !sel.value) return;
   const nuevo = sel.value === '__original' ? null : sel.value;
-  const conDatos = c.d.series.some((s) => s.peso !== '' || s.reps !== '');
-  const destino = nuevo || c.ej.nombre;
-  if (conDatos && !confirm(`Las series ya apuntadas pasarán a "${destino}". ¿Continuar?`)) { sel.value = ''; return; }
+  const antes = JSON.parse(JSON.stringify(c.actual));
   if (nuevo) c.d.sustituto = nuevo; else delete c.d.sustituto;
   guardar(K.actual, c.actual);
-  aviso(nuevo ? `Hoy: ${nuevo} en lugar de ${c.ej.nombre}` : `Vuelves a ${c.ej.nombre}`, 'info', 3);
   repintar();
+  avisoDeshacer(nuevo ? `Hoy: ${nuevo} en lugar de ${c.ej.nombre}` : `Vuelves a ${c.ej.nombre}`, () => { guardar(K.actual, antes); repintar(); });
 }
 
 /* ===================== Vista: Resumen ===================== */
@@ -607,13 +614,14 @@ async function accionSesion(accion, b) {
   switch (accion) {
     case 'empezar': empezarSesion(b.dataset.sesion); return true;
     case 'continuar': Descanso.prepararAudio(); navegar('sesion'); return true;
-    case 'descartar':
-      if (confirm('¿Descartar la sesión en curso? Se perderá lo apuntado.')) {
-        localStorage.removeItem(K.actual);
-        Descanso.parar();
-        repintar();
-      }
+    case 'descartar': {
+      const antes = leer(K.actual, null);
+      localStorage.removeItem(K.actual);
+      Descanso.parar();
+      repintar();
+      avisoDeshacer('Sesión descartada', () => { guardar(K.actual, antes); repintar(); });
       return true;
+    }
     case 'plegar': plegar(b); return true;
     case 'mas': pasoSerie(b, +1); return true;
     case 'menos': pasoSerie(b, -1); return true;

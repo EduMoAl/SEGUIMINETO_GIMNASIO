@@ -6,7 +6,7 @@
  *   Pantallas: sesion · resumen (sesion.js) · records (vistas.js)
  * ===================================================================== */
 
-const VERSION_APP = 'v6';
+const VERSION_APP = 'v7';
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
 
 let vistaActual = 'inicio';
@@ -20,14 +20,89 @@ const ORDEN_EJ = ORDEN_EJ_DATOS;
 
 const ICONO_AVISO = { ok: 'check', error: 'alerta', atencion: 'alerta', info: 'info', record: 'trofeo' };
 
-function aviso(texto, tipo = 'info', segundos = 5) {
+/**
+ * Aviso temporal abajo. Con `accion` muestra un botón (p. ej. Deshacer):
+ *   aviso('Sesión descartada', 'info', 8, { texto: 'Deshacer', fn: () => … })
+ */
+function aviso(texto, tipo = 'info', segundos = 5, accion = null) {
   const el = $('#toast');
   const limpio = String(texto).replace(/^(✓|✗|🏆|💪)\s*/u, '');
-  el.innerHTML = ico(ICONO_AVISO[tipo] || 'info') + `<span>${esc(limpio)}</span>`;
+  el.innerHTML = ico(ICONO_AVISO[tipo] || 'info') + `<span>${esc(limpio)}</span>` +
+    (accion ? `<button class="toast-accion" data-accion="toast-accion">${esc(accion.texto)}</button>` : '');
   el.className = 'toast ' + tipo;
   el.hidden = false;
+  aviso._accion = accion ? accion.fn : null;
   clearTimeout(aviso._t);
-  if (segundos) aviso._t = setTimeout(() => { el.hidden = true; }, segundos * 1000);
+  if (segundos) aviso._t = setTimeout(() => { el.hidden = true; aviso._accion = null; }, segundos * 1000);
+}
+
+function ocultarAviso() {
+  $('#toast').hidden = true;
+  aviso._accion = null;
+}
+
+/** Aviso con "Deshacer": guarda el estado anterior y lo restaura si se pulsa */
+function avisoDeshacer(texto, restaurar) {
+  aviso(texto, 'info', 8, {
+    texto: 'Deshacer',
+    fn: () => { restaurar(); invalidarIndice(); actualizarEstadoRed(); aviso('Deshecho', 'ok', 2); }
+  });
+}
+
+/* ---------- Estado de conexión y sesiones sin enviar ---------- */
+function actualizarEstadoRed() {
+  const el = $('#estado-red');
+  if (!el) return;
+  const pendientes = leer(K.pendientes, []).length;
+  const offline = !navigator.onLine;
+  const enSesion = vistaActual === 'sesion' || vistaActual === 'resumen';
+  if (offline) {
+    el.innerHTML = `${ico('alerta', 's')}<span>Sin conexión${pendientes ? ` · ${pendientes} sin enviar` : ''}</span>`;
+    el.className = 'estado-red sin-red';
+    el.hidden = false;
+  } else if (pendientes && !enviando && !enSesion) {
+    el.innerHTML = `${ico('subir', 's')}<span>${pendientes} ${pendientes === 1 ? 'sesión sin enviar' : 'sesiones sin enviar'}</span><button data-accion="enviar">Enviar</button>`;
+    el.className = 'estado-red pendientes';
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+  document.body.classList.toggle('con-estado-red', !el.hidden);
+}
+
+/* ---------- Actualización de la app (service worker en espera) ---------- */
+let swEnEspera = null;
+let actualizandoApp = false;
+
+function vigilarActualizaciones() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    const avisar = (sw) => {
+      swEnEspera = sw;
+      $('#actualizacion').hidden = false;
+    };
+    if (reg.waiting && navigator.serviceWorker.controller) avisar(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) avisar(sw);
+      });
+    });
+    // Buscar versiones nuevas al volver a la app y cada 30 minutos
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 30 * 60000);
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (actualizandoApp) { actualizandoApp = false; location.reload(); }
+  });
+}
+
+function actualizarApp() {
+  if (!swEnEspera) return;
+  actualizandoApp = true;
+  $('#actualizacion').hidden = true;
+  swEnEspera.postMessage('activar');
 }
 
 function hace(isoFechaHora) {
@@ -91,6 +166,7 @@ function render(vista) {
   clearInterval(relojIntervalo);
   window.scrollTo(0, 0);
   (VISTAS[vista] || VISTAS.inicio)();
+  actualizarEstadoRed();
 }
 
 /** Re-pinta la vista actual conservando el scroll */
@@ -245,13 +321,22 @@ document.addEventListener('click', async (e) => {
   switch (accion) {
     case 'atras': history.back(); break;
     case 'enviar': enviarPendientes(); break;
-    case 'borrar-pendiente':
-      if (confirm('¿Descartar esta sesión pendiente? No se guardará en la hoja.')) {
-        guardar(K.pendientes, leer(K.pendientes, []).filter((p) => p.id !== b.dataset.id));
-        invalidarIndice();
-        repintar();
-      }
+    case 'borrar-pendiente': {
+      const antes = leer(K.pendientes, []);
+      guardar(K.pendientes, antes.filter((p) => p.id !== b.dataset.id));
+      invalidarIndice();
+      repintar();
+      actualizarEstadoRed();
+      avisoDeshacer('Sesión pendiente descartada', () => { guardar(K.pendientes, antes); repintar(); });
       break;
+    }
+    case 'toast-accion': {
+      const fn = aviso._accion;
+      ocultarAviso();
+      if (fn) fn();
+      break;
+    }
+    case 'actualizar-app': actualizarApp(); break;
     case 'actualizar':
     case 'actualizar-forzado':
       await actualizarDatos({ silencioso: false });
@@ -274,9 +359,12 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('popstate', (e) => render((e.state && e.state.vista) || 'inicio'));
 
 window.addEventListener('online', async () => {
+  actualizarEstadoRed();
   const n = await enviarPendientes({ silencioso: true });
   if (!n) actualizarDatos();
+  actualizarEstadoRed();
 });
+window.addEventListener('offline', actualizarEstadoRed);
 
 let anchoPrevio = window.innerWidth;
 window.addEventListener('resize', () => {
@@ -295,7 +383,7 @@ document.addEventListener('visibilitychange', () => {
 
 /* ===================== Arranque ===================== */
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+vigilarActualizaciones();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 Descanso.restaurar();
@@ -310,4 +398,5 @@ if (leer(K.actual, null)) {
 (async () => {
   const n = await enviarPendientes({ silencioso: true });
   if (!n) actualizarDatos();
+  actualizarEstadoRed();
 })();

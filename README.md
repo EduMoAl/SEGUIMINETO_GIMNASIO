@@ -27,6 +27,7 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
 | `rutina.js` | La rutina, copiada exactamente de la pestaña `Rutina` |
 | `sw.js` | *Service worker*: guarda la app en el móvil para usarla sin internet |
 | `manifest.webmanifest`, `icons/` | Permiten instalarla como una app |
+| `tests/` | Pruebas automáticas: simulador de la hoja con datos inventados y baterías de pruebas (se ejecutan solas en GitHub en cada cambio) |
 | `apps-script/Code.gs` | Script que va **dentro de la hoja de Google**: recibe sesiones, devuelve datos y envía el resumen semanal |
 
 ## Pestañas de la hoja que usa la app
@@ -118,3 +119,11 @@ Los datos se guardan en el almacenamiento de Chrome para esta web: no borres los
    (a veces hace falta cerrarla y abrirla dos veces).
 
 Para probar en el ordenador: `python3 -m http.server 8000` en esta carpeta y abre `http://localhost:8000`.
+
+## Pruebas automáticas
+
+En cada cambio que se sube a `main`, GitHub ejecuta las pruebas (pestaña **Actions** del repositorio).
+Usan un simulador de la hoja de Google con **datos inventados** y el `Code.gs` real.
+
+Para ejecutarlas en un ordenador: `cd tests && npm install && npx playwright install chromium && node ejecutar.js`
+(o `node ejecutar.js calidad` para una sola batería).

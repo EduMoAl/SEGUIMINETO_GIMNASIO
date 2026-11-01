@@ -13,10 +13,10 @@
 ## Fases
 
 ### Fase A — Calidad
-- [ ] 6. Pruebas automáticas en el repositorio (`tests/`, datos inventados) y en GitHub Actions.
-- [ ] 1. Aviso de versión nueva con botón "Actualizar".
-- [ ] 3. Deshacer (descartar sesión, quitar serie extra, sustituir ejercicio, borrar pendiente).
-- [ ] 5. Indicador "Sin conexión" y sesiones pendientes.
+- [x] 6. Pruebas automáticas en el repositorio (`tests/`, datos inventados) y en GitHub Actions.
+- [x] 1. Aviso de versión nueva con botón "Actualizar".
+- [x] 3. Deshacer (descartar sesión, quitar serie extra, sustituir ejercicio, borrar pendiente).
+- [x] 5. Indicador "Sin conexión" y sesiones pendientes.
 
 ### Fase B — Multiusuario
 - [ ] Hoja nueva (la crea el script): Rutina (con músculos y material), Registro (con ID de sesión), Sesiones, Tiempos, Perfil (con email y recordatorio), Progreso con fórmulas.

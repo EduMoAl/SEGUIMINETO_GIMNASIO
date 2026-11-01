@@ -667,3 +667,35 @@ body.en-sesion.con-descanso .toast { bottom: calc(166px + var(--seguro-abajo)); 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Avisos de calidad: deshacer, conexión, actualización ---------- */
+.toast-accion {
+  margin-left: auto; flex: 0 0 auto; padding: 6px 12px; border-radius: 999px;
+  background: var(--morado-velo); border: 1px solid rgba(155, 108, 246, .55);
+  color: var(--morado-claro); font-weight: 700; font-size: .84rem;
+}
+.toast > span { flex: 1; min-width: 0; }
+.estado-red {
+  position: fixed; z-index: 24; left: 50%; transform: translateX(-50%);
+  top: calc(max(8px, env(safe-area-inset-top)) + 56px);
+  display: flex; align-items: center; gap: 7px; padding: 6px 8px 6px 11px; border-radius: 999px;
+  font-size: .76rem; font-weight: 700; white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+}
+.estado-red .ico { width: 14px; height: 14px; }
+.estado-red.sin-red { background: #2b2210; border: 1px solid rgba(247, 192, 74, .45); color: var(--oro); padding-right: 12px; }
+.estado-red.pendientes { background: #1f1a2c; border: 1px solid rgba(155, 108, 246, .45); color: var(--morado-claro); }
+.estado-red button {
+  padding: 3px 10px; border-radius: 999px; border: none; background: var(--morado); color: #fff; font-size: .74rem; font-weight: 700;
+}
+.actualizacion {
+  position: fixed; z-index: 31; left: 14px; right: 14px; top: calc(max(8px, env(safe-area-inset-top)) + 8px);
+  max-width: 540px; margin: 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 10px 14px; border-radius: 18px;
+  background: rgba(30, 26, 41, .98); border: 1px solid rgba(155, 108, 246, .5);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .55); font-size: .9rem; font-weight: 600;
+  animation: entrar .22s ease;
+}
+.actualizacion .ico { color: var(--morado-claro); }
+.actualizacion span { flex: 1; }
+body.con-estado-red main { padding-top: 46px; }

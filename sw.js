@@ -1,7 +1,7 @@
 // Service worker: guarda la app en el móvil para que funcione sin internet.
 // IMPORTANTE: cada vez que cambies algún archivo de la app, sube el número de VERSION
 // para que el móvil descargue la nueva versión.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE = 'edux-' + VERSION;
 const ARCHIVOS = [
   './',
@@ -31,8 +31,14 @@ const ARCHIVOS = [
   'fuentes/barlow-condensed-800.woff2'
 ];
 
+// La versión nueva se instala y queda EN ESPERA: la app avisa "Nueva versión disponible"
+// y, al pulsar Actualizar, le manda 'activar' para que tome el control y se recargue.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS)));
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'activar') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

@@ -52,6 +52,12 @@
 
   <header id="barra" class="barra"></header>
   <div id="progreso-sesion" class="progreso-sesion" hidden><div class="relleno"></div></div>
+  <div id="estado-red" class="estado-red" role="status" hidden></div>
+  <div id="actualizacion" class="actualizacion" role="status" hidden>
+    <svg class="ico" aria-hidden="true"><use href="#i-refrescar"/></svg>
+    <span>Nueva versión disponible</span>
+    <button class="chip fuerte" data-accion="actualizar-app">Actualizar</button>
+  </div>
 
   <main id="vista"></main>
 

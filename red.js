@@ -85,6 +85,7 @@ async function enviarPendientes({ silencioso = false } = {}) {
   }
   invalidarIndice();
   alCambiarDatos();
+  actualizarEstadoRed();
   if (enviadas) await actualizarDatos();
   return enviadas;
 }
