@@ -306,7 +306,7 @@ body.en-sesion.con-descanso main { padding-bottom: calc(190px + var(--seguro-aba
 
 /* ---------- Mapa del cuerpo ---------- */
 .cuerpo .activo { filter: drop-shadow(0 0 5px rgba(173, 145, 251, .35)); }
-.cuerpo-txt { fill: var(--tenue); font-family: var(--f-texto); font-size: 9px; font-weight: 700; letter-spacing: 2px; }
+.cuerpo-txt { fill: var(--tenue); font-family: var(--f-texto); font-size: 40px; font-weight: 700; letter-spacing: 8px; }
 
 /* ---------- Sesión ---------- */
 .cab-sesion { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 6px 2px 16px; color: var(--tenue); font-size: .88rem; }

@@ -510,6 +510,8 @@ function vistaAjustes() {
     <div class="tarjeta">
       <div class="info-fila"><span>App</span><span>EDUX TRAINING</span></div>
       <div class="info-fila"><span>Versión</span><span>${VERSION_APP}</span></div>
+      <div class="info-fila"><span>Mapa muscular</span><span>react-native-body-highlighter (MIT)</span></div>
+      <div class="info-fila"><span>Tipografías</span><span>Barlow (OFL)</span></div>
     </div>`;
 }
 

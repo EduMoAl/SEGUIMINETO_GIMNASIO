@@ -12,6 +12,7 @@ const ARCHIVOS = [
   'datos.js',
   'red.js',
   'grafico.js',
+  'cuerpo-datos.js',
   'cuerpo.js',
   'descanso.js',
   'sesion.js',

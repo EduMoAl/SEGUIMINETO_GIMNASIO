@@ -15,7 +15,7 @@ y una copia de solo lectura del Registro para poder consultarlo sin internet.
 |---|---|
 | `index.html`, `style.css` | Estructura, juego de iconos y sistema de diseño "Noche violeta" (negro y morado) |
 | `fuentes/` | Barlow y Barlow Condensed (licencia OFL), incluidas para funcionar sin internet |
-| `cuerpo.js` | Mapa del cuerpo en SVG (frente y espalda) para Inicio y Progreso |
+| `cuerpo-datos.js`, `cuerpo.js` | Mapa muscular (frente y espalda) para Inicio y Progreso. Dibujo de [react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter) (MIT, ver `licencias/`) |
 | `app.js` | Base: navegación, Inicio, eventos y arranque |
 | `sesion.js` | Entreno y resumen: series, sustitutos, series extra, tiempos, récords |
 | `vistas.js` | Historial, Progreso, Perfil, Récords y Ajustes |
