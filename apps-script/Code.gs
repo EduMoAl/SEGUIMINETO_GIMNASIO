@@ -3,19 +3,22 @@
  *
  * Va pegado en la hoja "EDUX · Administración" (Extensiones → Apps Script) y se publica
  * como aplicación web (Ejecutar como: Yo · Acceso: Cualquier usuario).
+ * Para instalarlo, abre en el navegador la URL de la aplicación web (termina en /exec):
+ * es una página de instalación que solo funciona para el dueño del script.
  *
  *  - La pestaña "Usuarios" de la hoja de Administración guarda a cada usuario:
  *    su nombre, email, la hoja con sus datos y su clave.
  *  - Cada usuario tiene SU hoja (Rutina, Registro, Sesiones, Tiempos, Perfil, Progreso).
  *    Con su clave, la app solo puede leer y escribir en esa hoja.
- *  - El menú "EDUX" de la hoja de Administración tiene la instalación, la migración de
- *    la hoja antigua y la activación de los emails automáticos.
+ *  - La página de instalación (y el menú "EDUX" de la hoja, si aparece) tiene la instalación,
+ *    la migración de la hoja antigua y la activación de los emails automáticos.
  *  - Emails: resumen semanal (lunes ~7:00) y recordatorio si alguien lleva X días
  *    sin entrenar (todos los días ~18:00), cada uno a su email.
  */
 
 const APP_URL = 'https://edumoal.github.io/SEGUIMINETO_GIMNASIO/';
 const VERSION_SCRIPT = 2;
+const NOMBRE_ADMIN = 'EDUX · Administración';
 
 const MUSCULOS = ['Pecho', 'Espalda', 'Hombro', 'Bíceps', 'Tríceps', 'Antebrazo', 'Abdomen', 'Lumbar',
   'Cuádriceps', 'Femoral', 'Glúteo', 'Aductores', 'Gemelos'];
@@ -41,7 +44,14 @@ const TIPOS_ADMIN = ['usuarios', 'crearUsuario', 'enlaceUsuario', 'activarUsuari
 /* ===================================================================== */
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('EDUX')
+  let ui;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    throw new Error('Google no deja mostrar el menú desde aquí. No pasa nada: abre en el navegador la URL de la aplicación web ' +
+      '(Implementar → Gestionar implementaciones → la que termina en /exec) y sigue los pasos de la página de instalación.');
+  }
+  ui.createMenu('EDUX')
     .addItem('1 · Instalar', 'instalar')
     .addItem('2 · Migrar hoja antigua…', 'migrarDesdeMenu')
     .addItem('3 · Activar emails automáticos', 'activarAvisos')
@@ -63,7 +73,7 @@ function instalar(opciones) {
   opciones = opciones || {};
   const ui = opciones.sinUi ? null : ui_();
   const props = PropertiesService.getScriptProperties();
-  const admin = SpreadsheetApp.getActiveSpreadsheet();
+  const admin = hojaAdminParaInstalar_();
   props.setProperty('ADMIN_ID', admin.getId());
 
   let url = opciones.urlWebApp || props.getProperty('URL_WEBAPP');
@@ -72,8 +82,9 @@ function instalar(opciones) {
     if (r.getSelectedButton() !== ui.Button.OK) return null;
     url = r.getResponseText().trim();
   }
-  if (!opciones.urlWebApp && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(url || '')) {
-    throw new Error('La URL de la aplicación web debe empezar por https://script.google.com/ y terminar en /exec.');
+  if (!opciones.urlWebApp && !urlWebAppValida_(url)) {
+    throw new Error('Falta la URL de la aplicación web (empieza por https://script.google.com/ y termina en /exec). ' +
+      'Lo más fácil: abre esa URL en el navegador y sigue la página de instalación.');
   }
   props.setProperty('URL_WEBAPP', url);
 
@@ -110,6 +121,195 @@ function mostrarMiEnlace() {
   if (ui) ui.alert('Tu enlace de conexión', 'Te lo he enviado por email. Ábrelo en Chrome en tu móvil:\n\n' + enlace, ui.ButtonSet.OK);
   return enlace;
 }
+
+/** URL de la aplicación web publicada (o la del simulador de pruebas) */
+function urlWebAppValida_(url) {
+  return /^https:\/\/script\.google\.com\/.+\/exec$/.test(url || '') || /^http:\/\/127\.0\.0\.1:\d+\/exec$/.test(url || '');
+}
+
+/** Hoja de Administración: la guardada, la del script, la que se llame así en tu Drive o una nueva */
+function hojaAdminParaInstalar_() {
+  const id = PropertiesService.getScriptProperties().getProperty('ADMIN_ID');
+  if (id) {
+    try { return SpreadsheetApp.openById(id); } catch (e) { /* se borró: se busca otra */ }
+  }
+  let ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; }
+  if (ss) return ss;
+  // El script está suelto (no dentro de una hoja): se usa la hoja "EDUX · Administración" de tu Drive
+  const archivos = DriveApp.getFilesByName(NOMBRE_ADMIN);
+  while (archivos.hasNext()) {
+    const f = archivos.next();
+    if (f.getMimeType() === MimeType.GOOGLE_SHEETS && !f.isTrashed()) return SpreadsheetApp.openById(f.getId());
+  }
+  return SpreadsheetApp.create(NOMBRE_ADMIN);
+}
+
+/* ===================================================================== */
+/* 1b. PÁGINA DE INSTALACIÓN (la URL de la aplicación web en el navegador) */
+/* ===================================================================== */
+
+/** Solo el dueño del script, con su cuenta de Google, puede usar la página de instalación */
+function esPropietario_() {
+  const yo = Session.getEffectiveUser().getEmail();
+  let activo = '';
+  try { activo = Session.getActiveUser().getEmail(); } catch (e) { activo = ''; }
+  return Boolean(yo) && activo === yo;
+}
+
+function exigirPropietario_() {
+  if (!esPropietario_()) throw new Error('Solo el dueño del script puede hacer esto. Abre esta página con tu cuenta de Google.');
+}
+
+function adminActual_() {
+  try {
+    return leerUsuarios_().filter(function (x) { return x.rol === 'admin'; })[0] || null;
+  } catch (e) {
+    return null;   // aún sin instalar
+  }
+}
+
+/** Estado de la instalación para la página */
+function panelEstado() {
+  if (!esPropietario_()) return { propietario: false };
+  const props = PropertiesService.getScriptProperties();
+  const admin = adminActual_();
+  let url = props.getProperty('URL_WEBAPP') || '';
+  if (!url) {
+    try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
+  }
+  return {
+    propietario: true,
+    email: Session.getEffectiveUser().getEmail(),
+    instalado: Boolean(admin),
+    nombre: admin ? admin.nombre : '',
+    url: urlWebAppValida_(url) ? url : '',
+    hojaAdmin: admin ? hojaAdmin_().getUrl() : '',
+    migracion: props.getProperty('MIGRACION') ? JSON.parse(props.getProperty('MIGRACION')) : null,
+    avisos: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'enviarRecordatorios'; }),
+    zona: Session.getScriptTimeZone()
+  };
+}
+
+function panelInstalar(nombre, url) {
+  exigirPropietario_();
+  url = texto_(url);
+  if (!urlWebAppValida_(url)) throw new Error('La URL debe empezar por https://script.google.com/ y terminar en /exec.');
+  nombre = texto_(nombre);
+  if (!nombre && !adminActual_()) throw new Error('Escribe tu nombre.');
+  const r = instalar({ sinUi: true, urlWebApp: url, nombre: nombre });
+  return { nombre: r.usuario.nombre, email: r.usuario.email };
+}
+
+function panelMigrar(textoUrl) {
+  exigirPropietario_();
+  if (!adminActual_()) throw new Error('Primero haz el paso 1 (Instalar).');
+  const m = /\/d\/([a-zA-Z0-9_-]+)/.exec(texto_(textoUrl));
+  const id = m ? m[1] : texto_(textoUrl);
+  if (!id) throw new Error('Pega la URL de tu hoja antigua.');
+  try {
+    SpreadsheetApp.openById(id);
+  } catch (e) {
+    throw new Error('No puedo abrir esa hoja. Copia la URL completa desde la barra de direcciones de la hoja antigua.');
+  }
+  const r = migrarHojaAntigua(id);
+  PropertiesService.getScriptProperties().setProperty('MIGRACION', JSON.stringify(r));
+  return r;
+}
+
+function panelActivarAvisos() {
+  exigirPropietario_();
+  if (!adminActual_()) throw new Error('Primero haz el paso 1 (Instalar).');
+  activarAvisos();
+  return { zona: Session.getScriptTimeZone() };
+}
+
+function panelEnviarEnlace() {
+  exigirPropietario_();
+  const u = adminActual_();
+  if (!u) throw new Error('Primero haz el paso 1 (Instalar).');
+  enviarEnlace_(u, enlaceDe_(u));
+  return u.email;
+}
+
+function panelProbarResumen() {
+  exigirPropietario_();
+  probarResumenSemanal();
+  return Session.getEffectiveUser().getEmail();
+}
+
+const HTML_PANEL = [
+  '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><base target="_blank">',
+  '<style>',
+  'body{margin:0;background:#09080d;color:#f4f2fa;font-family:Segoe UI,Roboto,Arial,sans-serif;line-height:1.45}',
+  '.caja{max-width:560px;margin:0 auto;padding:24px 16px 40px}',
+  '.marca{font-weight:800;letter-spacing:4px}.marca span{color:#c4b5fd;font-weight:600;letter-spacing:6px;font-size:12px}',
+  'h1{font-size:26px;margin:14px 0 4px}p{color:#c3bdd4}.tenue{color:#8a8599;font-size:13px}',
+  '.paso{background:#121018;border:1px solid #262230;border-radius:18px;padding:18px;margin-top:14px}',
+  '.paso.hecho{border-color:rgba(61,220,160,.45)}.paso.bloqueado{opacity:.45}',
+  '.paso h2{margin:0 0 6px;font-size:17px;display:flex;gap:10px;align-items:center}',
+  '.num{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#2a2340;color:#c4b5fd;font-size:14px}',
+  '.hecho .num{background:#3ddca0;color:#09080d}',
+  'label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#8a8599;font-weight:700;margin:12px 0 6px}',
+  'input{width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid #2e2840;background:#1a1723;color:#f4f2fa;font-size:15px}',
+  'button{margin-top:14px;width:100%;padding:13px;border:0;border-radius:999px;background:linear-gradient(135deg,#a873fb,#7c3aed 55%,#4c1d95);color:#fff;font-weight:700;font-size:15px;cursor:pointer}',
+  'button.sec{background:#1a1723;border:1px solid #2e2840}button:disabled{opacity:.5;cursor:default}',
+  '.ok{color:#3ddca0}.error{color:#f87171}.res{margin-top:12px;font-size:14px}a{color:#c4b5fd}',
+  '</style></head><body><div class="caja">',
+  '<div class="marca">EDUX <span>TRAINING</span></div>',
+  '<h1>Instalación</h1><div id="contenido"><p>Cargando…</p></div>',
+  '</div><script>',
+  'var E = null;',
+  'function $(id) { return document.getElementById(id); }',
+  'function esc(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }',
+  'function llamar(fn, args, boton, salida, alTerminar) {',
+  '  if (boton) boton.disabled = true;',
+  '  if (salida) { salida.className = "res tenue"; salida.textContent = "Un momento…"; }',
+  '  var r = google.script.run.withSuccessHandler(function (x) { if (boton) boton.disabled = false; alTerminar(x); })',
+  '    .withFailureHandler(function (e) { if (boton) boton.disabled = false; if (salida) { salida.className = "res error"; salida.textContent = (e && e.message) || String(e); } });',
+  '  r[fn].apply(r, args);',
+  '}',
+  'function pintar() {',
+  '  var c = $("contenido");',
+  '  if (!E.propietario) { c.innerHTML = "<div class=\\"paso\\"><h2>Solo para el dueño del script</h2><p>Si eres tú, abre esta página con la cuenta de Google con la que creaste el script (prueba en una ventana de incógnito entrando solo con esa cuenta).</p></div>"; return; }',
+  '  var h = "<p>Cuenta: <b>" + esc(E.email) + "</b></p>";',
+  '  h += "<div class=\\"paso " + (E.instalado ? "hecho" : "") + "\\"><h2><span class=\\"num\\">" + (E.instalado ? "✓" : "1") + "</span>Instalar</h2>";',
+  '  if (E.instalado) {',
+  '    h += "<p>Instalado. Administrador: <b>" + esc(E.nombre) + "</b>. Te envié por email tu <b>enlace de conexión</b> para el móvil.</p>";',
+  '    h += "<p class=\\"tenue\\"><a href=\\"" + esc(E.hojaAdmin) + "\\">Abrir la hoja de Administración</a></p>";',
+  '    h += "<button class=\\"sec\\" id=\\"b-enlace\\">Enviarme otra vez el enlace</button><div id=\\"r-enlace\\" class=\\"res\\"></div>";',
+  '  } else {',
+  '    h += "<p class=\\"tenue\\">Crea las carpetas EDUX TRAINING/Usuarios, tu usuario (administrador) y tu hoja nueva, y te envía por email tu enlace de conexión.</p>";',
+  '    h += "<label for=\\"i-nombre\\">Tu nombre</label><input id=\\"i-nombre\\" placeholder=\\"Como quieres que te salude la app\\">";',
+  '    h += "<label for=\\"i-url\\">URL de la aplicación web</label><input id=\\"i-url\\" value=\\"" + esc(E.url) + "\\" placeholder=\\"https://script.google.com/macros/s/…/exec\\">";',
+  '    h += "<p class=\\"tenue\\">Es la URL de esta página: la que termina en /exec.</p>";',
+  '    h += "<button id=\\"b-instalar\\">Instalar</button><div id=\\"r-instalar\\" class=\\"res\\"></div>";',
+  '  }',
+  '  h += "</div>";',
+  '  var bloq = E.instalado ? "" : " bloqueado";',
+  '  h += "<div class=\\"paso" + (E.migracion ? " hecho" : "") + bloq + "\\"><h2><span class=\\"num\\">" + (E.migracion ? "✓" : "2") + "</span>Migrar tu hoja antigua</h2>";',
+  '  h += "<p class=\\"tenue\\">Solo si venías de la versión anterior. Copia rutina, series, sesiones, días de asistencia, perfil y peso. La hoja antigua no se modifica. Se puede repetir.</p>";',
+  '  if (E.migracion) h += "<p class=\\"ok\\">" + resumenMigracion(E.migracion) + "</p>";',
+  '  h += "<label for=\\"i-antigua\\">URL de la hoja antigua</label><input id=\\"i-antigua\\" placeholder=\\"https://docs.google.com/spreadsheets/d/…\\">";',
+  '  h += "<button id=\\"b-migrar\\" " + (E.instalado ? "" : "disabled") + ">" + (E.migracion ? "Migrar otra vez" : "Migrar") + "</button><div id=\\"r-migrar\\" class=\\"res\\"></div></div>";',
+  '  h += "<div class=\\"paso" + (E.avisos ? " hecho" : "") + bloq + "\\"><h2><span class=\\"num\\">" + (E.avisos ? "✓" : "3") + "</span>Emails automáticos</h2>";',
+  '  h += "<p class=\\"tenue\\">Resumen semanal (lunes hacia las 7:00) y recordatorio si alguien lleva días sin entrenar (hacia las 18:00).</p>";',
+  '  h += "<p class=\\"tenue\\">Zona horaria del script: <b>" + esc(E.zona) + "</b>" + (/Madrid/.test(E.zona) ? "" : " · cámbiala a Madrid en ⚙ Configuración del proyecto") + "</p>";',
+  '  h += "<button id=\\"b-avisos\\" " + (E.instalado ? "" : "disabled") + ">" + (E.avisos ? "Activados · volver a activar" : "Activar") + "</button>";',
+  '  if (E.avisos) h += "<button class=\\"sec\\" id=\\"b-probar\\">Enviarme ahora el resumen de la semana pasada</button>";',
+  '  h += "<div id=\\"r-avisos\\" class=\\"res\\"></div></div>";',
+  '  c.innerHTML = h;',
+  '  if ($("b-instalar")) $("b-instalar").onclick = function () { llamar("panelInstalar", [$("i-nombre").value, $("i-url").value], this, $("r-instalar"), cargar); };',
+  '  if ($("b-enlace")) $("b-enlace").onclick = function () { var s = $("r-enlace"); llamar("panelEnviarEnlace", [], this, s, function (m) { s.className = "res ok"; s.textContent = "Enviado a " + m; }); };',
+  '  $("b-migrar").onclick = function () { llamar("panelMigrar", [$("i-antigua").value], this, $("r-migrar"), cargar); };',
+  '  $("b-avisos").onclick = function () { llamar("panelActivarAvisos", [], this, $("r-avisos"), cargar); };',
+  '  if ($("b-probar")) $("b-probar").onclick = function () { var s = $("r-avisos"); llamar("panelProbarResumen", [], this, s, function (m) { s.className = "res ok"; s.textContent = "Enviado a " + m; }); };',
+  '}',
+  'function resumenMigracion(r) { return "Copiado: " + r.ejercicios + " ejercicios de la rutina, " + r.series + " series, " + r.sesiones + " sesiones (" + r.asistencia + " solo de asistencia), " + r.tiempos + " tiempos y " + r.pesos + " registros de peso."; }',
+  'function cargar() { llamar("panelEstado", [], null, null, function (x) { E = x; pintar(); }); }',
+  'cargar();',
+  '</script></body></html>'
+].join('\n');
 
 /* ===================================================================== */
 /* 2. USUARIOS                                                            */
@@ -309,8 +509,11 @@ function prepararHojaUsuario_(ss, nombre) {
 /* 4. APLICACIÓN WEB                                                      */
 /* ===================================================================== */
 
+/** La URL de la aplicación web abierta en el navegador muestra la página de instalación */
 function doGet() {
-  return responder_({ ok: true, mensaje: 'Script central de EDUX TRAINING activo.', version: VERSION_SCRIPT });
+  return HtmlService.createHtmlOutput(HTML_PANEL)
+    .setTitle('EDUX TRAINING · Instalación')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 function doPost(e) {

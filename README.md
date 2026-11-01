@@ -100,29 +100,37 @@ Si apuntas series a mano en `Registro` sin ID de sesión, la app las agrupa por 
      *Ir a … (no seguro)* → *Permitir*. Es normal: el script es tuyo y no está verificado por Google.
      Pide acceso a hojas, Drive (para crear las hojas de los usuarios en su carpeta) y enviar emails.
    - Copia la **URL de la aplicación web** (termina en `/exec`).
-5. Vuelve a la hoja y **recárgala**: aparece el menú **EDUX**.
-6. **EDUX → 1 · Instalar**: pega la URL y escribe tu nombre. Crea las carpetas, tu usuario
-   (administrador) y tu hoja, y te envía por email tu **enlace de conexión**.
 
 > "Cualquier usuario" es necesario para que la app pueda llamar al script sin iniciar sesión.
 > Sin una clave válida el script no abre ninguna hoja.
 
-### 2. Si venías de la versión de un solo usuario
+### 2. Página de instalación
 
-1. **EDUX → 2 · Migrar hoja antigua…** y pega la URL de la hoja antigua. Copia rutina (con músculos
-   y material), series, sesiones, días de asistencia, tiempos, perfil y peso. La hoja antigua no se toca.
-   Se puede repetir: cada vez vacía tu hoja nueva y vuelve a copiar.
-2. En el Apps Script de la **hoja antigua**, ejecuta `desactivarResumenSemanal` (si no, te llegarían
-   dos resúmenes) y, en *Implementar → Gestionar implementaciones*, archiva su implementación.
+Abre la **URL de la aplicación web** (la que termina en `/exec`) en el navegador, con tu cuenta de Google.
+Es una página con tres pasos que **solo funciona para el dueño del script** (a cualquier otra persona
+le dice que no es para ella):
 
-### 3. Emails automáticos
+1. **Instalar**: escribe tu nombre (la URL ya viene puesta). Crea las carpetas `EDUX TRAINING/Usuarios`,
+   tu usuario (administrador) y tu hoja, y te envía por email tu **enlace de conexión**.
+2. **Migrar tu hoja antigua** (solo si venías de la versión de un solo usuario): pega la URL de la
+   hoja antigua. Copia rutina (con músculos y material), series, sesiones, días de asistencia, tiempos,
+   perfil y peso. La hoja antigua no se toca. Se puede repetir: cada vez vacía tu hoja nueva y vuelve a copiar.
+3. **Emails automáticos**: cada usuario activo con email recibe
+   - el **resumen semanal** (lunes hacia las 7:00), con sus sesiones, récords y series por músculo;
+   - un **recordatorio** (hacia las 18:00) si lleva los días de su Perfil sin entrenar (7 por defecto,
+     0 = desactivado; se cambia en la app, Perfil → Editar datos). Solo uno por parón.
 
-**EDUX → 3 · Activar emails automáticos.** Cada usuario activo con email recibe:
-- el **resumen semanal** (lunes hacia las 7:00), con sus sesiones, récords y series por músculo;
-- un **recordatorio** (hacia las 18:00) si lleva los días de su Perfil sin entrenar (7 por defecto,
-  0 = desactivado; se cambia en la app, Perfil → Editar datos). Solo uno por parón.
+La página también sirve después para reenviarte el enlace o probar el resumen semanal.
+(Si en la hoja de Administración aparece el menú **EDUX**, tiene las mismas opciones.)
 
-*Probar resumen semanal* te envía ahora el de la semana pasada.
+Si venías de la versión de un solo usuario, en el Apps Script de la **hoja antigua** ejecuta
+`desactivarResumenSemanal` (si no, te llegarían dos resúmenes) y, en *Implementar → Gestionar
+implementaciones*, archiva su implementación.
+
+### 3. Comprobar
+
+Abre la hoja de Administración (enlace en la página): la pestaña `Usuarios` tiene tu fila, y tu hoja
+está en `EDUX TRAINING/Usuarios`.
 
 ### 4. Publicar la app (GitHub Pages)
 

@@ -92,8 +92,11 @@ function formatearFecha(d, _tz, formato) {
     .replace('HH', dos(d.getHours())).replace('mm', dos(d.getMinutes()));
 }
 
-/** Crea un simulador nuevo (estado limpio) a partir del Code.gs del repositorio */
-function crearSimulador() {
+/**
+ * Crea un simulador nuevo (estado limpio) a partir del Code.gs del repositorio.
+ * opciones.suelto: el script no está dentro de la hoja (getActiveSpreadsheet() da null)
+ */
+function crearSimulador(opciones = {}) {
   const codigo = fs.readFileSync(path.join(RAIZ, 'apps-script', 'Code.gs'), 'utf8');
   let contador = 0;
   const nuevoId = (prefijo) => `${prefijo}${++contador}${crypto.randomBytes(6).toString('hex')}`;
@@ -106,6 +109,7 @@ function crearSimulador() {
   const correos = [];
   const triggers = [];
   const ui = { respuestas: [], alertas: [], activa: false };
+  const sesion = { usuarioActivo: 'admin@ejemplo.com' };   // '' = otra persona abriendo la página
 
   const crearCarpeta = (nombre, padre) => {
     const f = {
@@ -142,7 +146,7 @@ function crearSimulador() {
     Logger: { log: () => {} },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ t, setMimeType() { return this; } }) },
     SpreadsheetApp: {
-      getActiveSpreadsheet: () => admin,
+      getActiveSpreadsheet: () => (opciones.suelto ? null : admin),
       openById: (id) => {
         if (!libros[id]) throw new Error('No se encuentra el documento con el ID ' + id);
         return libros[id];
@@ -165,7 +169,21 @@ function crearSimulador() {
         };
       }
     },
+    MimeType: { GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet' },
+    HtmlService: {
+      createHtmlOutput: (html) => {
+        const o = { setTitle: () => o, addMetaTag: () => o, getContent: () => html };
+        return o;
+      }
+    },
     DriveApp: {
+      getFilesByName: (n) => {
+        const lista = Object.values(libros).filter((l) => l.nombre === n);
+        return {
+          hasNext: () => lista.length > 0,
+          next: () => { const l = lista.shift(); return { getId: () => l.id, getMimeType: () => 'application/vnd.google-apps.spreadsheet', isTrashed: () => false }; }
+        };
+      },
       createFolder: (n) => crearCarpeta(n, null),
       getFolderById: (id) => { if (!carpetas[id]) throw new Error('Carpeta no encontrada'); return carpetas[id]; },
       getFileById: (id) => {
@@ -174,8 +192,13 @@ function crearSimulador() {
       }
     },
     MailApp: { sendEmail: (o) => correos.push(o) },
-    Session: { getEffectiveUser: () => ({ getEmail: () => 'admin@ejemplo.com' }), getScriptTimeZone: () => 'Europe/Madrid' },
+    Session: {
+      getEffectiveUser: () => ({ getEmail: () => 'admin@ejemplo.com' }),
+      getActiveUser: () => ({ getEmail: () => sesion.usuarioActivo }),
+      getScriptTimeZone: () => 'Europe/Madrid'
+    },
     ScriptApp: {
+      getService: () => ({ getUrl: () => (base ? base + '/exec' : null) }),
       WeekDay: { MONDAY: 'MONDAY' },
       getProjectTriggers: () => triggers.slice(),
       deleteTrigger: (t) => triggers.splice(triggers.indexOf(t), 1),
@@ -253,14 +276,18 @@ function crearSimulador() {
     let cuerpo = '';
     req.on('data', (d) => { cuerpo += d; });
     req.on('end', () => {
-      const out = req.method === 'POST' ? ctx.doPost({ postData: { contents: cuerpo } }) : ctx.doGet();
+      if (req.method !== 'POST') {   // la página de instalación
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(ctx.doGet().getContent());
+      }
+      const out = ctx.doPost({ postData: { contents: cuerpo } });
       res.writeHead(200, cors);
       res.end(out.t);
     });
   });
 
   const sim = {
-    ctx, libros, carpetas, props, correos, triggers, ui, admin,
+    ctx, libros, carpetas, props, correos, triggers, ui, admin, sesion,
     ejecutar, usuarios, libroDe, ponerRutina, crearHojaAntigua, volcar,
     clave: null, libro: null, hojas: null,
     /** Arranca el servidor, instala el script (usuario administrador "Prueba") y le pone la rutina de prueba */
