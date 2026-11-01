@@ -245,14 +245,15 @@ body.en-sesion.con-descanso main { padding-bottom: calc(190px + var(--seguro-aba
   content: ""; position: absolute; right: -80px; top: -90px; width: 260px; height: 260px; border-radius: 50%;
   background: radial-gradient(circle, rgba(168, 115, 251, .35), transparent 65%); pointer-events: none;
 }
-.hero-cuerpo { display: grid; grid-template-columns: 1fr 122px; gap: 8px; align-items: center; position: relative; z-index: 1; }
+.hero-cuerpo { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: end; position: relative; z-index: 1; margin-top: 6px; }
+.hero > .hero-etiqueta, .hero > .hero-nombre { position: relative; z-index: 1; }
 .hero-etiqueta { font-size: .68rem; font-weight: 700; letter-spacing: .2em; color: var(--morado-claro); }
-.hero-nombre { margin: 8px 0 4px; font-family: var(--f-display); font-size: 3.4rem; font-weight: 800; line-height: .88; text-transform: uppercase; }
-.hero-grupos { color: var(--texto-2); font-size: .92rem; }
+.hero-nombre { margin: 8px 0 4px; font-family: var(--f-display); font-size: clamp(2.8rem, 15vw, 3.6rem); font-weight: 800; line-height: .88; text-transform: uppercase; }
+.hero-grupos { color: var(--texto-2); font-size: .92rem; line-height: 1.45; }
 .hero-datos { display: flex; gap: 18px; margin: 16px 0 0; }
 .hero-datos div { display: flex; flex-direction: column; font-size: .72rem; color: var(--texto-2); letter-spacing: .04em; }
 .hero-datos b { font-family: var(--f-display); font-size: 1.7rem; font-weight: 800; color: #fff; line-height: 1; }
-.hero .cuerpo { width: 122px; height: auto; filter: drop-shadow(0 6px 18px rgba(124, 58, 237, .35)); }
+.hero .cuerpo { width: 150px; height: auto; margin-top: -40px; filter: drop-shadow(0 6px 18px rgba(124, 58, 237, .35)); }
 .hero .fila-botones { position: relative; z-index: 1; margin-top: 18px; }
 .hero .btn.fantasma { flex: 0 0 auto; }
 
@@ -304,6 +305,7 @@ body.en-sesion.con-descanso main { padding-bottom: calc(190px + var(--seguro-aba
 .pendientes-cab .ico { color: var(--oro); }
 
 /* ---------- Mapa del cuerpo ---------- */
+.cuerpo .activo { filter: drop-shadow(0 0 5px rgba(173, 145, 251, .35)); }
 .cuerpo-txt { fill: var(--tenue); font-family: var(--f-texto); font-size: 9px; font-weight: 700; letter-spacing: 2px; }
 
 /* ---------- Sesión ---------- */

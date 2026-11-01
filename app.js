@@ -149,11 +149,11 @@ function vistaInicio() {
   }
   html += `
     <section class="hero">
+      <div class="hero-etiqueta">${actual ? 'SESIÓN EN CURSO' : 'SIGUIENTE ENTRENO'}</div>
+      <div class="hero-nombre">${esc(nombreHero)}</div>
       <div class="hero-cuerpo">
         <div>
-          <div class="hero-etiqueta">${actual ? 'SESIÓN EN CURSO' : 'SIGUIENTE ENTRENO'}</div>
-          <div class="hero-nombre">${esc(nombreHero)}</div>
-          <div class="hero-grupos">${esc(INFO_SESION[nombreHero].grupos)}</div>
+          <div class="hero-grupos">${esc(INFO_SESION[nombreHero].grupos).replace(/ · /g, '<br>')}</div>
           <div class="hero-datos">${datosHero}</div>
         </div>
         ${cuerpoSVG(intensidadSesion(nombreHero), { etiquetas: false })}
